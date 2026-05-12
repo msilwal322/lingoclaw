@@ -77,17 +77,17 @@ export default function ChatPage() {
 
   return (
     <AppShell>
-      <div className="flex flex-col h-screen md:h-[calc(100vh)]">
+      <div className="flex flex-col h-screen md:h-[calc(100vh)] bg-[#201d1d] font-mono">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-surface/80 backdrop-blur-md flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#252121] flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(34,211,238,0.2))", border: "1px solid rgba(124,58,237,0.3)" }}>
+            <div className="w-10 h-10 rounded flex items-center justify-center text-xl border border-white/10 bg-[#302c2c]">
               🐾
             </div>
             <div>
               <div className="font-bold text-sm">Claw</div>
               <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <div className="w-1.5 h-1.5 rounded-full" style={{background: "#30d158"}} />
                 <span className="text-xs text-muted">AI Language Tutor • Spanish</span>
               </div>
             </div>
@@ -95,7 +95,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={reset}
-              className="p-2 rounded-lg hover:bg-white/8 transition-colors text-muted hover:text-white"
+              className="p-2 rounded hover:bg-[#302c2c] transition-colors text-muted hover:text-white"
               title="Reset conversation"
             >
               <RotateCcw size={16} />
@@ -105,14 +105,14 @@ export default function ChatPage() {
 
         {/* Starters */}
         {messages.length <= 1 && (
-          <div className="px-6 py-4 flex-shrink-0">
-            <p className="text-xs text-muted mb-3 uppercase tracking-wider font-semibold">Try asking:</p>
+          <div className="px-6 py-4 flex-shrink-0 border-b border-white/10">
+            <p className="text-xs text-muted mb-3 uppercase tracking-wider font-medium">Try asking:</p>
             <div className="flex flex-wrap gap-2">
               {CHAT_STARTERS.map((s) => (
                 <button
                   key={s}
                   onClick={() => sendMessage(s)}
-                  className="text-xs px-3 py-2 rounded-full border border-white/10 bg-white/5 hover:border-purple-500/40 hover:bg-purple-500/8 transition-all text-slate-300"
+                  className="text-xs px-3 py-2 rounded border border-white/10 bg-[#252121] hover:border-white/20 hover:bg-[#302c2c] transition-all"
                 >
                   {s}
                 </button>
@@ -126,24 +126,19 @@ export default function ChatPage() {
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex gap-3 animate-fade-in ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+              className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
             >
               {msg.role === "assistant" && (
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0 mt-1" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(34,211,238,0.2))", border: "1px solid rgba(124,58,237,0.3)" }}>
+                <div className="w-8 h-8 rounded flex items-center justify-center text-sm flex-shrink-0 mt-1 border border-white/10 bg-[#302c2c]">
                   🐾
                 </div>
               )}
               <div
-                className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-line ${
+                className={`max-w-[75%] px-4 py-3 rounded text-sm leading-relaxed whitespace-pre-line ${
                   msg.role === "user"
-                    ? "rounded-tr-sm text-white"
-                    : "rounded-tl-sm text-slate-200"
+                    ? "rounded-tr-sm bg-[#007aff] text-white"
+                    : "rounded-tl-sm bg-[#252121] border border-white/10"
                 }`}
-                style={
-                  msg.role === "user"
-                    ? { background: "linear-gradient(135deg, #7c3aed, #2563eb)" }
-                    : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }
-                }
               >
                 {msg.content}
               </div>
@@ -151,16 +146,16 @@ export default function ChatPage() {
           ))}
 
           {isTyping && (
-            <div className="flex gap-3 animate-fade-in">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0 mt-1" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.3), rgba(34,211,238,0.2))", border: "1px solid rgba(124,58,237,0.3)" }}>
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded flex items-center justify-center text-sm flex-shrink-0 mt-1 border border-white/10 bg-[#302c2c]">
                 🐾
               </div>
-              <div className="px-4 py-3 rounded-2xl rounded-tl-sm" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="px-4 py-3 rounded rounded-tl-sm bg-[#252121] border border-white/10">
                 <div className="flex gap-1 items-center h-4">
                   {[0, 1, 2].map((i) => (
                     <div
                       key={i}
-                      className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce"
+                      className="w-1.5 h-1.5 rounded-full bg-[#9a9898] animate-bounce"
                       style={{ animationDelay: `${i * 0.15}s` }}
                     />
                   ))}
@@ -172,9 +167,9 @@ export default function ChatPage() {
         </div>
 
         {/* Input */}
-        <div className="px-6 py-4 border-t border-white/5 bg-surface/60 backdrop-blur-md flex-shrink-0">
+        <div className="px-6 py-4 border-t border-white/10 bg-[#252121] flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-2xl border border-white/10 bg-white/5 focus-within:border-purple-500/50 transition-colors">
+            <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded border border-white/10 bg-[#201d1d] focus-within:border-[#007aff] transition-colors">
               <input
                 ref={inputRef}
                 type="text"
@@ -182,17 +177,16 @@ export default function ChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Message Claw... (English or Spanish)"
-                className="flex-1 bg-transparent text-white placeholder-slate-600 text-sm focus:outline-none"
+                className="flex-1 bg-transparent text-white placeholder-[#6a6868] text-sm focus:outline-none"
               />
-              <button className="text-muted hover:text-purple-400 transition-colors">
+              <button className="text-muted hover:text-[#007aff] transition-colors">
                 <Mic size={16} />
               </button>
             </div>
             <button
               onClick={() => sendMessage()}
               disabled={!input.trim() || isTyping}
-              className="w-11 h-11 rounded-xl flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: "linear-gradient(135deg, #7c3aed, #2563eb)" }}
+              className="w-11 h-11 rounded flex items-center justify-center bg-[#007aff] hover:bg-[#0051d5] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Send size={16} className="text-white" />
             </button>

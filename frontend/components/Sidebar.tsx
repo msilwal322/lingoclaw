@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Learn graph", icon: Languages },
   { href: "/practice", label: "Practice", icon: Swords },
   { href: "/stories", label: "Stories", icon: BookMarked },
-  { href: "/profile", label: "Local profile", icon: Settings },
+  { href: "/profile", label: "Settings", icon: Settings },
 ];
 
 export default function Sidebar() {

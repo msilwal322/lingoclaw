@@ -21,19 +21,9 @@ export default function OnboardingPage() {
   const STEPS: Step[] = ["language", "goal", "name", "done"];
   const stepIdx = STEPS.indexOf(step);
 
-  const REASONS = [
-    { emoji: "✈️", label: "Travel" },
-    { emoji: "💼", label: "Career" },
-    { emoji: "❤️", label: "Family" },
-    { emoji: "📚", label: "Education" },
-    { emoji: "🎮", label: "Fun / Hobby" },
-    { emoji: "🌍", label: "Culture" },
-  ];
-
   function finish() {
-    const lang = LANGUAGES.find((l) => l.code === selected.language);
     saveProfile({
-      name: selected.name || "LingoClaw Learner",
+      name: selected.name || "Learner",
       currentLanguage: selected.language || "es",
       dailyGoalXp: selected.goalXp,
     });
@@ -42,14 +32,11 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-6 py-12"
-      style={{ background: "radial-gradient(ellipse at 30% 40%, rgba(124,58,237,0.15) 0%, transparent 50%), #08080f" }}
-    >
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-[#201d1d] font-mono">
       {/* Logo */}
       <div className="flex items-center gap-2 mb-10">
         <span className="text-3xl">🐾</span>
-        <span className="text-2xl font-black gradient-text">LingoClaw</span>
+        <span className="text-2xl font-bold">LingoClaw</span>
       </div>
 
       {/* Progress dots */}
@@ -57,43 +44,43 @@ export default function OnboardingPage() {
         {STEPS.slice(0, 3).map((s, i) => (
           <div key={s} className="flex items-center gap-2">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+              className={`w-8 h-8 rounded flex items-center justify-center text-xs font-bold transition-all duration-300 border ${
                 i < stepIdx
-                  ? "bg-purple-600 text-white"
+                  ? "bg-[#007aff] text-white border-[#007aff]"
                   : i === stepIdx
-                  ? "bg-purple-600 text-white ring-2 ring-purple-400 ring-offset-2 ring-offset-void"
-                  : "bg-white/10 text-muted"
+                  ? "bg-[#007aff] text-white border-[#007aff]"
+                  : "bg-[#302c2c] text-muted border-white/10"
               }`}
             >
               {i < stepIdx ? <Check size={14} /> : i + 1}
             </div>
-            {i < 2 && <div className={`w-12 h-0.5 ${i < stepIdx ? "bg-purple-600" : "bg-white/10"}`} />}
+            {i < 2 && <div className={`w-12 h-0.5 ${i < stepIdx ? "bg-[#007aff]" : "bg-white/10"}`} />}
           </div>
         ))}
       </div>
 
-      <div className="w-full max-w-lg animate-slide-up">
+      <div className="w-full max-w-lg">
 
         {/* Step: Choose language */}
         {step === "language" && (
-          <div className="glass-card p-8">
-            <h1 className="text-2xl font-black mb-2">What do you want to learn?</h1>
+          <div className="border border-white/10 rounded p-8 bg-[#252121]">
+            <h1 className="text-2xl font-bold mb-2">Setup workspace</h1>
             <p className="text-muted text-sm mb-6">Choose your target language to get started.</p>
             <div className="grid grid-cols-2 gap-3 mb-8 max-h-80 overflow-y-auto pr-1">
               {LANGUAGES.map((lang) => (
                 <button
                   key={lang.code}
                   onClick={() => setSelected((s) => ({ ...s, language: lang.code }))}
-                  className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                  className={`flex items-center gap-3 p-3 rounded border transition-all ${
                     selected.language === lang.code
-                      ? "border-purple-500 bg-purple-500/15 text-white"
-                      : "border-white/8 bg-white/4 text-slate-300 hover:border-purple-500/40 hover:bg-purple-500/8"
+                      ? "border-[#007aff] bg-[#007aff]/15 text-white"
+                      : "border-white/10 bg-[#302c2c] hover:border-white/20 hover:bg-[#3a3535]"
                   }`}
                 >
                   <span className="text-2xl">{lang.flag}</span>
                   <span className="font-medium text-sm">{lang.name}</span>
                   {selected.language === lang.code && (
-                    <Check size={14} className="ml-auto text-purple-400" />
+                    <Check size={14} className="ml-auto" style={{color: "#007aff"}} />
                   )}
                 </button>
               ))}
@@ -101,7 +88,7 @@ export default function OnboardingPage() {
             <button
               onClick={() => setStep("goal")}
               disabled={!selected.language}
-              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-workbench-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Continue <ArrowRight size={18} />
             </button>
@@ -110,18 +97,18 @@ export default function OnboardingPage() {
 
         {/* Step: Set goal */}
         {step === "goal" && (
-          <div className="glass-card p-8">
-            <h1 className="text-2xl font-black mb-2">Set your daily goal</h1>
-            <p className="text-muted text-sm mb-6">How much time do you want to spend learning each day?</p>
+          <div className="border border-white/10 rounded p-8 bg-[#252121]">
+            <h1 className="text-2xl font-bold mb-2">Set your practice goal</h1>
+            <p className="text-muted text-sm mb-6">How much time do you want to spend practicing each day?</p>
             <div className="grid grid-cols-2 gap-3 mb-6">
               {DAILY_GOALS.map((g) => (
                 <button
                   key={g.xp}
                   onClick={() => setSelected((s) => ({ ...s, goalXp: g.xp }))}
-                  className={`flex flex-col items-center gap-2 p-5 rounded-xl border transition-all ${
+                  className={`flex flex-col items-center gap-2 p-5 rounded border transition-all ${
                     selected.goalXp === g.xp
-                      ? "border-purple-500 bg-purple-500/15"
-                      : "border-white/8 bg-white/4 hover:border-purple-500/40"
+                      ? "border-[#007aff] bg-[#007aff]/15"
+                      : "border-white/10 bg-[#302c2c] hover:border-white/20"
                   }`}
                 >
                   <span className="text-3xl">{g.icon}</span>
@@ -132,62 +119,49 @@ export default function OnboardingPage() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-muted text-center mb-6">You can always change this later in your profile.</p>
+            <p className="text-xs text-muted text-center mb-6">You can change this later in settings.</p>
             <div className="flex gap-3">
-              <button onClick={() => setStep("language")} className="btn-secondary flex items-center gap-2">
+              <button onClick={() => setStep("language")} className="btn-workbench-secondary flex items-center gap-2">
                 <ArrowLeft size={16} /> Back
               </button>
-              <button onClick={() => setStep("name")} className="btn-primary flex-1 flex items-center justify-center gap-2">
+              <button onClick={() => setStep("name")} className="btn-workbench-primary flex-1 flex items-center justify-center gap-2">
                 Continue <ArrowRight size={18} />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step: Name + reason */}
+        {/* Step: Name */}
         {step === "name" && (
-          <div className="glass-card p-8">
-            <h1 className="text-2xl font-black mb-2">Almost there!</h1>
-            <p className="text-muted text-sm mb-6">Tell us a bit about yourself.</p>
-            <div className="mb-5">
+          <div className="border border-white/10 rounded p-8 bg-[#252121]">
+            <h1 className="text-2xl font-bold mb-2">Almost there!</h1>
+            <p className="text-muted text-sm mb-6">What should we call you?</p>
+            <div className="mb-8">
               <label className="block text-sm font-medium mb-2">Your name</label>
               <input
                 type="text"
                 value={selected.name}
                 onChange={(e) => setSelected((s) => ({ ...s, name: e.target.value }))}
                 placeholder="e.g. Alex"
-                className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
+                className="workbench-input w-full"
               />
             </div>
-            <div className="mb-8">
-              <label className="block text-sm font-medium mb-3">Why are you learning?</label>
-              <div className="grid grid-cols-3 gap-2">
-                {REASONS.map((r) => (
-                  <button
-                    key={r.label}
-                    onClick={() => setSelected((s) => ({ ...s, reason: r.label }))}
-                    className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-medium transition-all ${
-                      selected.reason === r.label
-                        ? "border-purple-500 bg-purple-500/15 text-white"
-                        : "border-white/8 bg-white/4 text-muted hover:border-purple-500/30"
-                    }`}
-                  >
-                    <span className="text-xl">{r.emoji}</span>
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="flex gap-3">
-              <button onClick={() => setStep("goal")} className="btn-secondary flex items-center gap-2">
+              <button onClick={() => setStep("goal")} className="btn-workbench-secondary flex items-center gap-2">
                 <ArrowLeft size={16} /> Back
               </button>
-              <button onClick={finish} className="btn-primary flex-1 flex items-center justify-center gap-2">
+              <button onClick={finish} className="btn-workbench-primary flex-1 flex items-center justify-center gap-2">
                 Start Learning 🐾
               </button>
             </div>
           </div>
         )}
+      </div>
+
+      {/* Local-first notice */}
+      <div className="border border-white/10 rounded p-4 mt-8 text-xs text-muted bg-[#252121] leading-relaxed max-w-lg">
+        <div style={{color: "#30d158"}} className="mb-1">● local-first workspace</div>
+        Everything stays on your device. No account, no server, just you and your language learning tools.
       </div>
     </div>
   );

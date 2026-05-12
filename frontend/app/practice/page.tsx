@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RotateCcw, Check, X, ChevronLeft, ChevronRight, Zap } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import Link from "next/link";
 
@@ -66,21 +66,21 @@ export default function PracticePage() {
   if (mode === "menu") {
     return (
       <AppShell>
-        <div className="px-6 py-8 max-w-3xl mx-auto">
+        <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-3xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-2xl font-black mb-1">Practice</h1>
+            <h1 className="text-2xl font-bold mb-1">Practice</h1>
             <p className="text-muted text-sm">Reinforce what you&apos;ve learned with different practice modes.</p>
           </div>
 
           {/* Score from last round */}
           {(known.size + unknown.size > 0) && (
-            <div className="glass-card p-5 mb-8 flex items-center gap-4">
+            <div className="border border-white/10 rounded p-5 mb-8 flex items-center gap-4 bg-[#252121]">
               <div className="text-4xl">📊</div>
               <div>
                 <div className="font-bold">Last Flashcard Session</div>
                 <div className="text-sm text-muted mt-1">
-                  <span className="text-green-400 font-semibold">{known.size} known</span> ·{" "}
-                  <span className="text-red-400 font-semibold">{unknown.size} still learning</span>
+                  <span style={{color: "#30d158"}} className="font-semibold">{known.size} known</span> ·{" "}
+                  <span style={{color: "#ff453a"}} className="font-semibold">{unknown.size} still learning</span>
                 </div>
               </div>
             </div>
@@ -95,7 +95,7 @@ export default function PracticePage() {
                 setUnknown(new Set());
                 setMode("flashcards");
               }}
-              className="glass-card-hover p-6 text-left"
+              className="workbench-card-hover p-6 text-left"
             >
               <div className="text-4xl mb-4">🃏</div>
               <h2 className="text-lg font-bold mb-2">Flashcards</h2>
@@ -103,7 +103,7 @@ export default function PracticePage() {
                 Review vocabulary cards. Flip to reveal translations and mark what you know.
               </p>
               <div className="flex items-center gap-2 mt-4">
-                <span className="text-xs text-purple-400 font-medium">{FLASHCARDS.length} cards</span>
+                <span className="text-xs font-medium" style={{color: "#007aff"}}>{FLASHCARDS.length} cards</span>
                 <span className="text-xs text-muted">• Spanish vocabulary</span>
               </div>
             </button>
@@ -116,7 +116,7 @@ export default function PracticePage() {
                 setFillScore(0);
                 setMode("quiz");
               }}
-              className="glass-card-hover p-6 text-left"
+              className="workbench-card-hover p-6 text-left"
             >
               <div className="text-4xl mb-4">✍️</div>
               <h2 className="text-lg font-bold mb-2">Fill in the Blank</h2>
@@ -124,31 +124,30 @@ export default function PracticePage() {
                 Complete sentences by typing the missing word. Tests recall over recognition.
               </p>
               <div className="flex items-center gap-2 mt-4">
-                <span className="text-xs text-cyan-400 font-medium">{FILL_BLANKS.length} questions</span>
+                <span className="text-xs font-medium" style={{color: "#5ac8fa"}}>{FILL_BLANKS.length} questions</span>
                 <span className="text-xs text-muted">• Spanish sentences</span>
               </div>
             </button>
 
-            <Link href="/lesson/l3" className="glass-card-hover p-6 block">
+            <Link href="/lesson/l3" className="workbench-card-hover p-6 block">
               <div className="text-4xl mb-4">🎮</div>
               <h2 className="text-lg font-bold mb-2">Mini Lessons</h2>
               <p className="text-sm text-muted leading-relaxed">
                 Short, focused lessons covering grammar and vocabulary with instant feedback.
               </p>
               <div className="flex items-center gap-2 mt-4">
-                <span className="text-xs text-amber-400 font-medium">7 questions</span>
-                <span className="text-xs text-muted">• +50 XP</span>
+                <span className="text-xs font-medium" style={{color: "#ff9f0a"}}>7 questions</span>
               </div>
             </Link>
 
-            <Link href="/chat" className="glass-card-hover p-6 block">
+            <Link href="/chat" className="workbench-card-hover p-6 block">
               <div className="text-4xl mb-4">🗣️</div>
               <h2 className="text-lg font-bold mb-2">Conversation Practice</h2>
               <p className="text-sm text-muted leading-relaxed">
                 Chat with Claw, your AI tutor. Practice real-world conversation scenarios.
               </p>
               <div className="flex items-center gap-2 mt-4">
-                <span className="text-xs text-green-400 font-medium">AI-powered</span>
+                <span className="text-xs font-medium" style={{color: "#30d158"}}>AI-powered</span>
                 <span className="text-xs text-muted">• Open-ended</span>
               </div>
             </Link>
@@ -162,9 +161,9 @@ export default function PracticePage() {
     const progressPct = Math.round((cardIdx / FLASHCARDS.length) * 100);
     return (
       <AppShell>
-        <div className="px-6 py-8 max-w-xl mx-auto">
+        <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-xl mx-auto">
           <div className="flex items-center justify-between mb-6">
-            <button onClick={() => setMode("menu")} className="btn-secondary flex items-center gap-2 text-sm py-2 px-4">
+            <button onClick={() => setMode("menu")} className="btn-workbench-secondary flex items-center gap-2 text-sm py-2 px-4">
               <ChevronLeft size={16} /> Back
             </button>
             <div className="text-sm text-muted">
@@ -172,33 +171,33 @@ export default function PracticePage() {
             </div>
           </div>
 
-          <div className="xp-bar-track mb-8">
-            <div className="xp-bar-fill" style={{ width: `${progressPct}%` }} />
+          <div className="progress-track mb-8">
+            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
           </div>
 
           {/* Flashcard */}
           <div
-            className="glass-card p-0 mb-8 cursor-pointer select-none overflow-hidden"
-            style={{ minHeight: 260, background: "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(34,211,238,0.08))", borderColor: "rgba(124,58,237,0.25)" }}
+            className="border border-white/10 rounded p-0 mb-8 cursor-pointer select-none overflow-hidden bg-[#252121]"
+            style={{ minHeight: 260 }}
             onClick={() => setFlip((f) => (f === "front" ? "back" : "front"))}
           >
-            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <span className="text-xs text-muted uppercase tracking-wider">
                 {flip === "front" ? "Spanish" : "English"}
               </span>
-              <span className="text-xs text-purple-400">Tap to flip</span>
+              <span className="text-xs" style={{color: "#007aff"}}>Tap to flip</span>
             </div>
 
             <div className="p-8 flex flex-col items-center justify-center text-center" style={{ minHeight: 180 }}>
               {flip === "front" ? (
                 <>
-                  <div className="text-4xl font-black mb-3">{card.front}</div>
+                  <div className="text-4xl font-bold mb-3">{card.front}</div>
                   <div className="text-sm text-muted">{card.phonetic}</div>
                 </>
               ) : (
                 <>
-                  <div className="text-4xl font-black gradient-text mb-3">{card.back}</div>
-                  <div className="text-sm text-slate-400 italic mt-2">&ldquo;{card.example}&rdquo;</div>
+                  <div className="text-4xl font-bold mb-3" style={{color: "#007aff"}}>{card.back}</div>
+                  <div className="text-sm text-muted italic mt-2">&ldquo;{card.example}&rdquo;</div>
                 </>
               )}
             </div>
@@ -206,16 +205,18 @@ export default function PracticePage() {
 
           {/* Verdict buttons */}
           {flip === "back" && (
-            <div className="flex gap-4 animate-fade-in">
+            <div className="flex gap-4">
               <button
                 onClick={() => nextCard("unknown")}
-                className="flex-1 py-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 font-semibold flex items-center justify-center gap-2 hover:bg-red-500/15 transition-colors"
+                className="flex-1 py-4 rounded border font-semibold flex items-center justify-center gap-2 hover:bg-[#302c2c] transition-colors"
+                style={{borderColor: "#ff453a", color: "#ff453a", background: "rgba(255,69,58,0.1)"}}
               >
                 <X size={20} /> Still Learning
               </button>
               <button
                 onClick={() => nextCard("known")}
-                className="flex-1 py-4 rounded-xl border border-green-500/30 bg-green-500/10 text-green-400 font-semibold flex items-center justify-center gap-2 hover:bg-green-500/15 transition-colors"
+                className="flex-1 py-4 rounded border font-semibold flex items-center justify-center gap-2 hover:bg-[#302c2c] transition-colors"
+                style={{borderColor: "#30d158", color: "#30d158", background: "rgba(48,209,88,0.1)"}}
               >
                 <Check size={20} /> Got It!
               </button>
@@ -225,7 +226,7 @@ export default function PracticePage() {
           {flip === "front" && (
             <button
               onClick={() => setFlip("back")}
-              className="btn-primary w-full flex items-center justify-center gap-2"
+              className="btn-workbench-primary w-full flex items-center justify-center gap-2"
             >
               Reveal Answer
             </button>
@@ -239,21 +240,21 @@ export default function PracticePage() {
     const progressPct = Math.round((fillIdx / FILL_BLANKS.length) * 100);
     return (
       <AppShell>
-        <div className="px-6 py-8 max-w-xl mx-auto">
+        <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-xl mx-auto">
           <div className="flex items-center justify-between mb-6">
-            <button onClick={() => setMode("menu")} className="btn-secondary flex items-center gap-2 text-sm py-2 px-4">
+            <button onClick={() => setMode("menu")} className="btn-workbench-secondary flex items-center gap-2 text-sm py-2 px-4">
               <ChevronLeft size={16} /> Back
             </button>
-            <div className="flex items-center gap-2 text-sm font-bold text-amber-400">
+            <div className="flex items-center gap-2 text-sm font-bold" style={{color: "#ff9f0a"}}>
               <Zap size={14} /> {fillScore} / {fillIdx} correct
             </div>
           </div>
 
-          <div className="xp-bar-track mb-8">
-            <div className="xp-bar-fill" style={{ width: `${progressPct}%` }} />
+          <div className="progress-track mb-8">
+            <div className="progress-fill" style={{ width: `${progressPct}%` }} />
           </div>
 
-          <div className="glass-card p-6 mb-6">
+          <div className="border border-white/10 rounded p-6 mb-6 bg-[#252121]">
             <div className="text-xs text-muted uppercase tracking-wider mb-2">Fill in the blank</div>
             <div className="text-xl font-bold mb-2 leading-relaxed">
               {fillItem.sentence.replace("___", "______")}
@@ -269,17 +270,18 @@ export default function PracticePage() {
               onKeyDown={(e) => e.key === "Enter" && fillState === "idle" && checkFill()}
               disabled={fillState !== "idle"}
               placeholder="Type the missing word..."
-              className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 transition-colors text-lg"
+              className="workbench-input w-full text-lg"
             />
           </div>
 
           {fillState !== "idle" && (
             <div
-              className={`p-4 rounded-xl border mb-4 animate-slide-up ${
+              className={`p-4 rounded border mb-4 ${
                 fillState === "correct"
-                  ? "bg-green-500/10 border-green-500/30 text-green-300"
-                  : "bg-red-500/10 border-red-500/30 text-red-300"
+                  ? "border-[#30d158] text-[#30d158]"
+                  : "border-[#ff453a] text-[#ff453a]"
               }`}
+              style={{background: fillState === "correct" ? "rgba(48,209,88,0.1)" : "rgba(255,69,58,0.1)"}}
             >
               {fillState === "correct" ? (
                 <span className="font-semibold">✓ Correct!</span>
@@ -297,12 +299,12 @@ export default function PracticePage() {
             <button
               onClick={checkFill}
               disabled={!fillInput.trim()}
-              className="btn-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-workbench-primary w-full disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Check Answer
             </button>
           ) : (
-            <button onClick={nextFill} className="btn-primary w-full flex items-center justify-center gap-2">
+            <button onClick={nextFill} className="btn-workbench-primary w-full flex items-center justify-center gap-2">
               {fillIdx + 1 >= FILL_BLANKS.length ? "See Results" : "Next"} <ChevronRight size={18} />
             </button>
           )}
@@ -310,7 +312,7 @@ export default function PracticePage() {
           {fillState === "idle" && (
             <button
               onClick={() => { setFillState("wrong"); }}
-              className="w-full text-center text-xs text-muted mt-3 hover:text-slate-400 transition-colors"
+              className="w-full text-center text-xs text-muted mt-3 hover:text-[#fdfcfc] transition-colors"
             >
               Hint: {fillItem.hint}
             </button>
