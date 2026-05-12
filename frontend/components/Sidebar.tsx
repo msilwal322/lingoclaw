@@ -2,90 +2,45 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  BookOpen,
-  Swords,
-  MessageCircle,
-  BookMarked,
-  Trophy,
-  User,
-  Zap,
-  Flame,
-} from "lucide-react";
-import { getProfile } from "@/lib/storage";
-import { useEffect, useState } from "react";
-import type { UserProfile } from "@/lib/storage";
+import { BookMarked, Bot, Braces, Gauge, Languages, MessageCircle, Mic, Settings, Swords } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/lesson/l3", label: "Lessons", icon: BookOpen },
+  { href: "/", label: "Workbench", icon: Gauge },
+  { href: "/providers", label: "Providers", icon: Braces },
+  { href: "/chat", label: "Tutor chat", icon: MessageCircle },
+  { href: "/voice", label: "Voice talk", icon: Mic },
+  { href: "/dashboard", label: "Learn graph", icon: Languages },
   { href: "/practice", label: "Practice", icon: Swords },
-  { href: "/chat", label: "AI Tutor", icon: MessageCircle },
   { href: "/stories", label: "Stories", icon: BookMarked },
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/profile", label: "Local profile", icon: Settings },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    setProfile(getProfile());
-  }, []);
-
-  const goalPct = profile
-    ? Math.min(100, Math.round((profile.todayXp / profile.dailyGoalXp) * 100))
-    : 0;
 
   return (
-    <aside className="hidden md:flex flex-col w-64 min-h-screen bg-surface border-r border-white/5 p-4 gap-2 fixed left-0 top-0 z-40">
-      {/* Logo */}
-      <Link href="/dashboard" className="flex items-center gap-3 px-4 py-3 mb-2">
-        <span className="text-2xl">🐾</span>
-        <span className="text-xl font-black gradient-text">LingoClaw</span>
+    <aside className="hidden md:flex flex-col w-72 min-h-screen bg-[#201d1d] border-r border-white/10 p-4 gap-2 fixed left-0 top-0 z-40 font-mono">
+      <Link href="/" className="px-3 py-3 mb-3 border border-white/10 rounded bg-[#252121]">
+        <div className="flex items-center gap-2 text-[#fdfcfc] font-bold"><Bot size={18} /> LingoClaw</div>
+        <div className="text-[11px] text-[#9a9898] mt-1">open language workbench</div>
       </Link>
 
-      {/* Nav items */}
       <nav className="flex-1 flex flex-col gap-1">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            pathname === href ||
-            (href !== "/dashboard" && pathname.startsWith(href.split("/")[1] ? `/${href.split("/")[1]}` : href));
+          const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
-            <Link key={href} href={href} className={`nav-item ${isActive ? "active" : ""}`}>
-              <Icon size={18} />
+            <Link key={href} href={href} className={`flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-colors border ${isActive ? "text-[#fdfcfc] bg-[#302c2c] border-white/15" : "text-[#9a9898] border-transparent hover:text-[#fdfcfc] hover:bg-[#252121]"}`}>
+              <Icon size={16} />
               {label}
             </Link>
           );
         })}
       </nav>
 
-      {/* Daily goal widget */}
-      {profile && (
-        <div className="glass-card p-4 mt-2">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-muted uppercase tracking-wider">Daily Goal</span>
-            <span className="text-xs font-bold text-purple-400">
-              {profile.todayXp}/{profile.dailyGoalXp} XP
-            </span>
-          </div>
-          <div className="xp-bar-track mb-3">
-            <div className="xp-bar-fill" style={{ width: `${goalPct}%` }} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="streak-badge text-xs">
-              <Flame size={12} />
-              {profile.streak} day streak
-            </span>
-            <span className="flex items-center gap-1 text-xs font-bold text-amber-400">
-              <Zap size={12} />
-              {profile.totalXp.toLocaleString()} XP
-            </span>
-          </div>
-        </div>
-      )}
+      <div className="border border-white/10 rounded p-3 text-xs text-[#9a9898] bg-[#252121] leading-relaxed">
+        <div className="text-[#30d158] mb-1">● local-first</div>
+        Keys stay in your environment. This UI stores mock provider routing in localStorage only.
+      </div>
     </aside>
   );
 }
