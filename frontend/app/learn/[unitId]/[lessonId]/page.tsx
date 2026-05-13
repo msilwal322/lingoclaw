@@ -58,7 +58,7 @@ export default function LearnLessonPage() {
     if (currentQ + 1 >= questions.length || lives <= 0) {
       const xp = Math.round((score / questions.length) * (lesson?.xpReward ?? 50));
       setXpEarned(xp);
-      api.completeLesson(lessonId, xp).catch(() => {});
+      api.completeLesson(lessonId, score).catch(() => {});
       completeLesson(lessonId, xp);
       setDone(true);
     } else {

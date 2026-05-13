@@ -9,11 +9,11 @@ export class ApiService {
   languages(){ return this.store.db.languages; }
   profile(){ return this.store.db.profile; }
   updateProfile(patch:any){ this.store.db.profile={...this.store.db.profile,...patch}; this.store.save(); return this.profile(); }
-  lessons(){ const p=this.profile(); return this.store.db.lessons.map((l:any)=>({...l,completed:p.completedLessons.includes(l.id)})); }
+  lessons(lang?: string){ const p=this.profile(); const all=this.store.db.lessons.map((l:any)=>({...l,completed:p.completedLessons.includes(l.id)})); return lang ? all.filter((l:any)=>l.lang===lang) : all; }
   lesson(id:string){ const lesson=this.lessons().find((l:any)=>l.id===id); if(!lesson) throw new NotFoundException('Lesson not found'); return {...lesson,questions:this.store.db.questions}; }
   completeLesson(id:string, score=0){ const lesson=this.lesson(id); const p=this.profile(); if(!p.completedLessons.includes(id)) p.completedLessons.push(id); p.totalXp += lesson.xpReward; p.todayXp = (p.lastActiveDate===this.today()?p.todayXp:0)+lesson.xpReward; p.lastActiveDate=this.today(); this.store.save(); return {profile:p,lesson:{...lesson,completed:true},score,xpEarned:lesson.xpReward}; }
   progress(){ const p=this.profile(); return {totalXp:p.totalXp,todayXp:p.todayXp,streak:p.streak,longestStreak:p.longestStreak,completedLessons:p.completedLessons,completedStories:p.completedStories,dailyGoalXp:p.dailyGoalXp}; }
-  stories(){ const p=this.profile(); return this.store.db.stories.map((s:any)=>({...s,completed:p.completedStories.includes(s.id)})); }
+  stories(lang?: string){ const p=this.profile(); const all=this.store.db.stories.map((s:any)=>({...s,completed:p.completedStories.includes(s.id)})); return lang ? all.filter((s:any)=>s.lang===lang) : all; }
   completeStory(id:string){ const p=this.profile(); if(!this.store.db.stories.some((s:any)=>s.id===id)) throw new NotFoundException('Story not found'); if(!p.completedStories.includes(id)) p.completedStories.push(id); this.store.save(); return {profile:p,storyId:id}; }
   achievements(){ return this.store.db.achievements; }
   leaderboard(){ const p=this.profile(); return [{rank:1,name:p.name,avatar:p.avatar,xp:p.totalXp,streak:p.streak,country:'Local',isCurrentUser:true},{rank:2,name:'Demo workspace',avatar:'⌘',xp:12800,streak:8,country:'Seed',isCurrentUser:false}]; }

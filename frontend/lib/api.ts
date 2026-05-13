@@ -28,7 +28,7 @@ export const api = {
   lessons: (lang = "es") => request<Lesson[]>(`/lessons?lang=${encodeURIComponent(lang)}`),
   lesson: (id: string) => request<LessonWithQuestions>(`/lessons/${encodeURIComponent(id)}`),
   completeLesson: (id: string, score: number) => request<{ profile: UserProfile; lesson: Lesson; score: number; xpEarned: number }>(`/lessons/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({ score }) }),
-  stories: (lang = "es") => request<Story[]>(`/stories?lang=${encodeURIComponent(lang)}`),
+  stories: (lang?: string) => request<Story[]>(lang ? `/stories?lang=${encodeURIComponent(lang)}` : "/stories"),
   completeStory: (id: string) => request<{ profile: UserProfile; storyId: string }>(`/stories/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({}) }),
   achievements: () => request<Achievement[]>("/achievements"),
   leaderboard: () => request<LeaderboardUser[]>("/leaderboard"),

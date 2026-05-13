@@ -9,10 +9,10 @@ export class ApiController {
   @Get('me') me(){ return this.api.profile(); }
   @Patch('me') updateMe(@Body() body:any){ return this.api.updateProfile(body); }
   @Get('me/progress') progress(){ return this.api.progress(); }
-  @Get('lessons') lessons(@Query('lang') _lang?: string){ return this.api.lessons(); }
+  @Get('lessons') lessons(@Query('lang') lang?: string){ return this.api.lessons(lang); }
   @Get('lessons/:id') lesson(@Param('id') id:string){ return this.api.lesson(id); }
   @Post('lessons/:id/complete') completeLesson(@Param('id') id:string,@Body() body:any){ return this.api.completeLesson(id, Number(body?.score ?? 0)); }
-  @Get('stories') stories(@Query('lang') _lang?: string){ return this.api.stories(); }
+  @Get('stories') stories(@Query('lang') lang?: string){ return this.api.stories(lang); }
   @Post('stories/:id/complete') completeStory(@Param('id') id:string){ return this.api.completeStory(id); }
   @Get('achievements') achievements(){ return this.api.achievements(); }
   @Get('leaderboard') leaderboard(){ return this.api.leaderboard(); }

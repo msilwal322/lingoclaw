@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { LANGUAGES, DAILY_GOALS } from "@/lib/mock-data";
+import type { Language } from "@/lib/mock-data";
 import { saveProfile, setOnboarded } from "@/lib/storage";
+import { api } from "@/lib/api";
 
 type Step = "language" | "goal" | "name" | "done";
 
@@ -18,16 +20,26 @@ export default function OnboardingPage() {
     reason: "",
   });
 
+  const [languages, setLanguages] = useState<Language[]>(LANGUAGES);
+
+  useEffect(() => {
+    api.languages()
+      .then((data) => { if (data?.length) setLanguages(data); })
+      .catch(() => {});
+  }, []);
+
   const STEPS: Step[] = ["language", "goal", "name", "done"];
   const stepIdx = STEPS.indexOf(step);
 
   function finish() {
-    saveProfile({
+    const profile = {
       name: selected.name || "Learner",
       currentLanguage: selected.language || "es",
       dailyGoalXp: selected.goalXp,
-    });
+    };
+    saveProfile(profile);
     setOnboarded();
+    api.updateMe(profile).catch(() => {});
     router.push("/dashboard");
   }
 
@@ -67,7 +79,7 @@ export default function OnboardingPage() {
             <h1 className="text-2xl font-bold mb-2">Setup workspace</h1>
             <p className="text-muted text-sm mb-6">Choose your target language to get started.</p>
             <div className="grid grid-cols-2 gap-3 mb-8 max-h-80 overflow-y-auto pr-1">
-              {LANGUAGES.map((lang) => (
+              {languages.map((lang) => (
                 <button
                   key={lang.code}
                   onClick={() => setSelected((s) => ({ ...s, language: lang.code }))}
@@ -161,7 +173,7 @@ export default function OnboardingPage() {
       {/* Local-first notice */}
       <div className="border border-white/10 rounded p-4 mt-8 text-xs text-muted bg-[#252121] leading-relaxed max-w-lg">
         <div style={{color: "#30d158"}} className="mb-1">● local-first workspace</div>
-        Everything stays on your device. No account, no server, just you and your language learning tools.
+        Preferences sync to the local backend when available. No external account or cloud service needed.
       </div>
     </div>
   );
