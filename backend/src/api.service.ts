@@ -5,6 +5,7 @@ export class ApiService {
   constructor(private store: StoreService) {}
   private today(){ return new Date().toISOString().split('T')[0]; }
   health(){ return { ok:true, service:'lingoclaw-backend', time:new Date().toISOString() }; }
+  root(){ return { name:'lingoclaw-backend', status:'ok', time:new Date().toISOString(), endpoints:['/health','/languages','/me','/me/progress','/lessons','/lessons/:id','/stories','/achievements','/leaderboard','/providers','/providers/roles','/chat/sessions'] }; }
   languages(){ return this.store.db.languages; }
   profile(){ return this.store.db.profile; }
   updateProfile(patch:any){ this.store.db.profile={...this.store.db.profile,...patch}; this.store.save(); return this.profile(); }

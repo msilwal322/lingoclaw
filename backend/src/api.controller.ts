@@ -3,6 +3,7 @@ import { ApiService } from './api.service';
 @Controller()
 export class ApiController {
   constructor(private api: ApiService) {}
+  @Get() root(){ return this.api.root(); }
   @Get('health') health(){ return this.api.health(); }
   @Get('languages') languages(){ return this.api.languages(); }
   @Get('me') me(){ return this.api.profile(); }
