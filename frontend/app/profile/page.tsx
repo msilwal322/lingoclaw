@@ -5,6 +5,7 @@ import { BookOpen, Edit2, Check, Settings as SettingsIcon, Terminal } from "luci
 import AppShell from "@/components/AppShell";
 import { getProfile, saveProfile, type UserProfile } from "@/lib/storage";
 import { LANGUAGES, DAILY_GOALS } from "@/lib/mock-data";
+import { api } from "@/lib/api";
 
 const AVATARS = ["🐾", "🦁", "🐯", "🦊", "🐺", "🦋", "🐉", "🦅", "🧙", "👾"];
 
@@ -15,16 +16,25 @@ export default function ProfilePage() {
   const [editAvatar, setEditAvatar] = useState("");
 
   useEffect(() => {
-    const p = getProfile();
-    setProfile(p);
-    setEditName(p.name);
-    setEditAvatar(p.avatar);
+    api.me()
+      .then((p) => {
+        setProfile(p);
+        setEditName(p.name);
+        setEditAvatar(p.avatar);
+      })
+      .catch(() => {
+        const p = getProfile();
+        setProfile(p);
+        setEditName(p.name);
+        setEditAvatar(p.avatar);
+      });
   }, []);
 
   if (!profile) return null;
 
   function saveEdits() {
     const updated = saveProfile({ name: editName, avatar: editAvatar });
+    api.updateMe({ name: editName, avatar: editAvatar }).catch(() => {});
     setProfile(updated);
     setEditing(false);
   }

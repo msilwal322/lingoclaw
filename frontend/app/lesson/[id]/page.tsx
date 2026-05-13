@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { X, ChevronRight, Heart, CheckCircle, XCircle } from "lucide-react";
 import { QUESTIONS, LESSONS } from "@/lib/mock-data";
+import type { Question } from "@/lib/mock-data";
 import { completeLesson } from "@/lib/storage";
+import { api } from "@/lib/api";
+import type { LessonWithQuestions } from "@/lib/api";
 import Link from "next/link";
 
 type AnswerState = "idle" | "correct" | "wrong";
@@ -13,8 +16,19 @@ export default function LessonPage() {
   const params = useParams();
   const lessonId = params.id as string;
 
-  const lesson = LESSONS.find((l) => l.id === lessonId) ?? LESSONS[2];
-  const questions = QUESTIONS;
+  const [lessonData, setLessonData] = useState<LessonWithQuestions | null>(null);
+  const [questions, setQuestions] = useState<Question[]>(QUESTIONS);
+
+  useEffect(() => {
+    api.lesson(lessonId)
+      .then((data) => {
+        setLessonData(data);
+        if (data.questions?.length) setQuestions(data.questions);
+      })
+      .catch(() => {});
+  }, [lessonId]);
+
+  const lesson = lessonData ?? LESSONS.find((l) => l.id === lessonId) ?? LESSONS[2];
 
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -40,6 +54,7 @@ export default function LessonPage() {
 
   function handleNext() {
     if (currentQ + 1 >= questions.length || lives <= 0) {
+      api.completeLesson(lessonId, score).catch(() => {});
       completeLesson(lessonId, score);
       setDone(true);
     } else {

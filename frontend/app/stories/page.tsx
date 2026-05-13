@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Clock, BookOpen, Check } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { STORIES, type Story } from "@/lib/mock-data";
 import { completeStory, getProfile } from "@/lib/storage";
+import { api } from "@/lib/api";
 
 const LEVEL_COLORS: Record<string, string> = {
   A1: "border-[#30d158] text-[#30d158]",
@@ -58,6 +59,7 @@ function StoryReader({ story, onClose }: { story: Story; onClose: () => void }) 
   const [finished, setFinished] = useState(false);
 
   function handleFinish() {
+    api.completeStory(story.id).catch(() => {});
     completeStory(story.id);
     setFinished(true);
   }
@@ -118,8 +120,13 @@ function StoryReader({ story, onClose }: { story: Story; onClose: () => void }) 
 }
 
 export default function StoriesPage() {
+  const [stories, setStories] = useState<Story[]>(STORIES);
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [filter, setFilter] = useState<string>("all");
+
+  useEffect(() => {
+    api.stories().then(setStories).catch(() => {});
+  }, []);
 
   if (activeStory) {
     return (
@@ -129,8 +136,8 @@ export default function StoriesPage() {
     );
   }
 
-  const languages = Array.from(new Set(STORIES.map((s) => s.language)));
-  const filtered = filter === "all" ? STORIES : STORIES.filter((s) => s.language === filter);
+  const languages = Array.from(new Set(stories.map((s) => s.language)));
+  const filtered = filter === "all" ? stories : stories.filter((s) => s.language === filter);
 
   return (
     <AppShell>

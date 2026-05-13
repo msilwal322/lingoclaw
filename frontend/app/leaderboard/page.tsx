@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Terminal, TrendingUp, Users } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { LEADERBOARD } from "@/lib/mock-data";
+import type { LeaderboardUser } from "@/lib/mock-data";
+import { api } from "@/lib/api";
 
 type Period = "weekly" | "monthly" | "alltime";
 
@@ -15,8 +17,13 @@ const PERIOD_LABELS: Record<Period, string> = {
 
 export default function LeaderboardPage() {
   const [period, setPeriod] = useState<Period>("weekly");
+  const [baseData, setBaseData] = useState<LeaderboardUser[]>(LEADERBOARD);
 
-  const data = LEADERBOARD.map((u) => ({
+  useEffect(() => {
+    api.leaderboard().then(setBaseData).catch(() => {});
+  }, []);
+
+  const data = baseData.map((u) => ({
     ...u,
     xp: Math.round(u.xp * (period === "weekly" ? 0.02 : period === "monthly" ? 0.08 : 1)),
   }));
