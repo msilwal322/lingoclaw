@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, ArrowRight, Lock, CheckCircle, Clock, Terminal } from "lucide-react";
 import AppShell from "@/components/AppShell";
-import { getProfile, type UserProfile } from "@/lib/storage";
+import { DEFAULT_PROFILE, type UserProfile } from "@/lib/storage";
 import { LESSONS, LANGUAGES } from "@/lib/mock-data";
+import { api } from "@/lib/api";
 
 function LessonCard({ lesson, profile }: { lesson: (typeof LESSONS)[0]; profile: UserProfile }) {
   const isCompleted = profile.completedLessons.includes(lesson.id);
@@ -63,17 +64,25 @@ function LessonCard({ lesson, profile }: { lesson: (typeof LESSONS)[0]; profile:
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [languages, setLanguages] = useState(LANGUAGES);
+  const [lessons, setLessons] = useState(LESSONS);
 
   useEffect(() => {
-    setProfile(getProfile());
+    Promise.all([api.me(), api.languages(), api.lessons()])
+      .then(([nextProfile, nextLanguages, nextLessons]) => {
+        setProfile(nextProfile);
+        setLanguages(nextLanguages);
+        setLessons(nextLessons);
+      })
+      .catch(() => setProfile(DEFAULT_PROFILE));
   }, []);
 
   if (!profile) return null;
 
-  const currentLang = LANGUAGES.find((l) => l.code === profile.currentLanguage) ?? LANGUAGES[0];
+  const currentLang = languages.find((l) => l.code === profile.currentLanguage) ?? languages[0];
   const levelPct = Math.round((currentLang.xp / currentLang.totalXp) * 100);
 
-  const todayLessons = LESSONS.slice(0, 4);
+  const todayLessons = lessons.slice(0, 4);
 
   return (
     <AppShell>

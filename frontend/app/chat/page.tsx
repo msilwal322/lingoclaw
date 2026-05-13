@@ -4,38 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import { Send, RotateCcw, Mic, BookOpen } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import { INITIAL_CHAT, CHAT_STARTERS, type ChatMessage } from "@/lib/mock-data";
-
-const AI_RESPONSES: Record<string, string> = {
-  default: "¡Muy bien! That's a great question. Let me help you with that. In Spanish, the key is to practice consistently. Would you like me to give you an example?",
-  hola: "¡Hola! Qué bueno verte por aquí. How are you feeling about your Spanish today? ¿Cómo estás? 😊",
-  gracias: "¡De nada! You're welcome. By the way, 'gracias' is one of the most important words you'll use. Did you know there are several ways to thank someone in Spanish?",
-  bien: "¡Qué bien! I'm glad to hear that. Let's keep the practice going. What topic would you like to work on — vocabulary, grammar, or conversation practice?",
-  help: "Of course! I can help you with: \n• Grammar explanations\n• Vocabulary practice\n• Roleplay scenarios (restaurant, hotel, etc.)\n• Pronunciation tips\n• Cultural context\n\nWhat would be most useful right now?",
-  practice: "¡Perfecto! Let's practice a real conversation. I'll play the role of a café server in Madrid. Ready?\n\n*In Spanish*\n— Buenos días, ¿qué desea tomar?",
-  grammar: "Great choice! Spanish grammar has some tricky spots. The most common challenge is knowing when to use **ser** vs **estar** (both mean 'to be'). \n\n• **Ser** = permanent traits (identity, nationality, profession)\n• **Estar** = temporary states (location, feelings, conditions)\n\nWant some examples?",
-};
-
-function getAIResponse(message: string): string {
-  const lower = message.toLowerCase();
-  for (const key of Object.keys(AI_RESPONSES)) {
-    if (key !== "default" && lower.includes(key)) {
-      return AI_RESPONSES[key];
-    }
-  }
-  const responses = [
-    "¡Interesante! That's a great observation. In Spanish, context is everything — the same word can mean different things depending on how it's used. Want to explore that further?",
-    "Good question! Let me think about the best way to explain this... In Spanish, we often use different tenses than you might expect in English. The key is immersion — reading, listening, and speaking as much as possible.",
-    "¡Excelente pregunta! Actually, Spanish speakers from different countries have different accents and even different words for the same thing. For example, in Spain they say 'ordenador' for computer, while in Latin America they say 'computadora'.",
-    "I love your curiosity! That's exactly the mindset that leads to fluency. Would you like to try a role-play scenario to practice this in context?",
-    "¡Muy bien! You're making real progress. One tip: don't be afraid of making mistakes. Even native speakers make errors. The important thing is to communicate and keep learning!",
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
-}
+import { api } from "@/lib/api";
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -43,7 +18,11 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  function sendMessage(text?: string) {
+  useEffect(() => {
+    api.createChatSession().then((session) => setSessionId(session.id)).catch(() => setSessionId(null));
+  }, []);
+
+  async function sendMessage(text?: string) {
     const content = (text ?? input).trim();
     if (!content) return;
 
@@ -57,16 +36,22 @@ export default function ChatPage() {
     setInput("");
     setIsTyping(true);
 
-    setTimeout(() => {
+    try {
+      const activeSessionId = sessionId ?? (await api.createChatSession()).id;
+      setSessionId(activeSessionId);
+      const result = await api.sendChatMessage(activeSessionId, content);
       const aiMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+        id: result.message.id,
         role: "assistant",
-        content: getAIResponse(content),
-        timestamp: new Date(),
+        content: result.message.content,
+        timestamp: new Date(result.message.createdAt),
       };
       setMessages((m) => [...m, aiMsg]);
+    } catch {
+      setMessages((m) => [...m, { id: (Date.now() + 1).toString(), role: "assistant", content: "Backend unavailable. Start it with `cd backend && npm run start:dev` and try again.", timestamp: new Date() }]);
+    } finally {
       setIsTyping(false);
-    }, 800 + Math.random() * 600);
+    }
   }
 
   function reset() {
@@ -193,7 +178,7 @@ export default function ChatPage() {
           </div>
           <div className="flex items-center gap-1 mt-2 text-xs text-muted">
             <BookOpen size={11} />
-            <span>Claw is your AI language tutor. Responses are simulated for demo.</span>
+            <span>Claw is your AI language tutor. Responses are served by the local Nest backend.</span>
           </div>
         </div>
       </div>

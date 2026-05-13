@@ -2,6 +2,7 @@
 
 import AppShell from "@/components/AppShell";
 import { DEFAULT_PROVIDERS, DEFAULT_ROLES, getModelRoles, getProviders, saveModelRoles, saveProviders, type ModelRole, type ProviderConfig } from "@/lib/providers";
+import { api } from "@/lib/api";
 import { Check, Plus, RotateCcw, Save, Settings2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -13,8 +14,15 @@ export default function ProvidersPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setProviders(getProviders());
-    setRoles(getModelRoles());
+    Promise.all([api.providers(), api.roles()])
+      .then(([nextProviders, nextRoles]) => {
+        setProviders(nextProviders);
+        setRoles(nextRoles);
+      })
+      .catch(() => {
+        setProviders(getProviders());
+        setRoles(getModelRoles());
+      });
   }, []);
 
   function updateProvider(id: string, patch: Partial<ProviderConfig>) {
@@ -25,9 +33,11 @@ export default function ProvidersPage() {
     setRoles((items) => items.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
-  function saveAll() {
-    saveProviders(providers);
-    saveModelRoles(roles);
+  async function saveAll() {
+    await Promise.all([api.saveProviders(providers), api.saveRoles(roles)]).catch(() => {
+      saveProviders(providers);
+      saveModelRoles(roles);
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   }
@@ -35,8 +45,10 @@ export default function ProvidersPage() {
   function resetAll() {
     setProviders(DEFAULT_PROVIDERS);
     setRoles(DEFAULT_ROLES);
-    saveProviders(DEFAULT_PROVIDERS);
-    saveModelRoles(DEFAULT_ROLES);
+    void Promise.all([api.saveProviders(DEFAULT_PROVIDERS), api.saveRoles(DEFAULT_ROLES)]).catch(() => {
+      saveProviders(DEFAULT_PROVIDERS);
+      saveModelRoles(DEFAULT_ROLES);
+    });
   }
 
   return (
@@ -47,11 +59,11 @@ export default function ProvidersPage() {
             <div>
               <div className="text-xs text-[#9a9898] mb-2">settings/providers.toml</div>
               <h1 className="text-3xl md:text-4xl font-bold">Provider and model routing</h1>
-              <p className="text-[#9a9898] mt-3 max-w-2xl leading-relaxed">Assign different AI providers to different language-learning jobs. This is mock UI/localStorage only for now, designed to become the control panel for the open-source runtime.</p>
+              <p className="text-[#9a9898] mt-3 max-w-2xl leading-relaxed">Assign different AI providers to different language-learning jobs. Saved through the local Nest backend; only environment variable names are stored, never raw API keys.</p>
             </div>
             <div className="flex gap-2">
               <button onClick={resetAll} className="border border-white/15 rounded px-4 py-2 text-sm hover:bg-[#302c2c] inline-flex items-center gap-2"><RotateCcw size={14}/> reset</button>
-              <button onClick={saveAll} className="border border-white/15 rounded px-4 py-2 text-sm bg-[#fdfcfc] text-[#201d1d] hover:bg-[#f1eeee] inline-flex items-center gap-2">{saved ? <Check size={14}/> : <Save size={14}/>} {saved ? "saved" : "save local"}</button>
+              <button onClick={saveAll} className="border border-white/15 rounded px-4 py-2 text-sm bg-[#fdfcfc] text-[#201d1d] hover:bg-[#f1eeee] inline-flex items-center gap-2">{saved ? <Check size={14}/> : <Save size={14}/>} {saved ? "saved" : "save backend"}</button>
             </div>
           </header>
 
