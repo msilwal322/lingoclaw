@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { StoreService } from './store/store.service';
+import { LlmService } from './llm.service';
 @Injectable()
 export class ApiService {
-  constructor(private store: StoreService) {}
+  constructor(private store: StoreService, private llm: LlmService) {}
   private today(){ return new Date().toISOString().split('T')[0]; }
   health(){ return { ok:true, service:'lingoclaw-backend', time:new Date().toISOString() }; }
   root(){ return { name:'lingoclaw-backend', status:'ok', time:new Date().toISOString(), endpoints:['/health','/languages','/me','/me/progress','/lessons','/lessons/:id','/stories','/achievements','/leaderboard','/providers','/providers/roles','/chat/sessions'] }; }
@@ -22,5 +23,44 @@ export class ApiService {
   roles(){ return this.store.db.roles; }
   saveRoles(roles:any[]){ this.store.db.roles=roles; this.store.save(); return this.roles(); }
   createChatSession(){ const session={id:`cs_${Date.now()}`,createdAt:new Date().toISOString(),languageCode:this.profile().currentLanguage}; this.store.db.chatSessions.push(session); this.store.save(); return session; }
-  chat(sessionId:string, content:string){ if(!this.store.db.chatSessions.some((s:any)=>s.id===sessionId)) throw new NotFoundException('Chat session not found'); const user={id:`m_${Date.now()}_u`,sessionId,role:'user',content,createdAt:new Date().toISOString()}; const reply=`I heard: "${content}". Try answering in ${this.profile().currentLanguage === 'es' ? 'Spanish' : 'your target language'} too. One small correction at a time is the fastest path.`; const assistant={id:`m_${Date.now()}_a`,sessionId,role:'assistant',content:reply,createdAt:new Date().toISOString()}; this.store.db.chatMessages.push(user,assistant); this.store.save(); return {message:assistant,messages:[user,assistant]}; }
+  async chat(sessionId: string, content: string) {
+    if (!this.store.db.chatSessions.some((s: any) => s.id === sessionId))
+      throw new NotFoundException('Chat session not found');
+
+    const history: Array<{ role: string; content: string }> = this.store.db.chatMessages
+      .filter((m: any) => m.sessionId === sessionId)
+      .map((m: any) => ({ role: m.role, content: m.content }));
+
+    const user = { id: `m_${Date.now()}_u`, sessionId, role: 'user', content, createdAt: new Date().toISOString() };
+    this.store.db.chatMessages.push(user);
+
+    const tutorRole = this.store.db.roles.find((r: any) => r.id === 'tutor-chat');
+    const provider = tutorRole ? this.store.db.providers.find((p: any) => p.id === tutorRole.providerId) : null;
+
+    let replyContent: string;
+    if (!tutorRole || !provider || !tutorRole.enabled) {
+      replyContent = 'The tutor is not configured. Please set up a provider and enable the tutor-chat role in settings.';
+    } else {
+      const session = this.store.db.chatSessions.find((s: any) => s.id === sessionId);
+      const langCode = session?.languageCode ?? this.profile().currentLanguage ?? 'es';
+      const langName = this.store.db.languages.find((l: any) => l.code === langCode)?.name ?? langCode;
+
+      const messages = [
+        {
+          role: 'system',
+          content: `You are a friendly ${langName} language tutor. Use the Socratic method: ask guiding questions, give brief grammar explanations, and encourage the student. The student is learning ${langName}. Keep responses concise (2–4 sentences). If the student writes in ${langName}, respond with corrections inline.`,
+        },
+        ...history,
+        { role: 'user', content },
+      ];
+
+      replyContent = await this.llm.chat(provider, tutorRole, messages);
+    }
+
+    const assistant = { id: `m_${Date.now() + 1}_a`, sessionId, role: 'assistant', content: replyContent, createdAt: new Date().toISOString() };
+    this.store.db.chatMessages.push(assistant);
+    this.store.save();
+
+    return { message: assistant, messages: [user, assistant] };
+  }
 }

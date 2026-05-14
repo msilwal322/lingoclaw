@@ -3,5 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { StoreModule } from './store/store.module';
 import { ApiController } from './api.controller';
 import { ApiService } from './api.service';
-@Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), StoreModule], controllers: [ApiController], providers: [ApiService] })
+import { LlmService } from './llm.service';
+@Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), StoreModule], controllers: [ApiController], providers: [ApiService, LlmService] })
 export class AppModule {}
