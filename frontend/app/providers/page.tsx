@@ -1,7 +1,7 @@
 "use client";
 
 import AppShell from "@/components/AppShell";
-import { DEFAULT_PROVIDERS, DEFAULT_ROLES, getModelRoles, getProviders, saveModelRoles, saveProviders, type ModelRole, type ProviderConfig } from "@/lib/providers";
+import { type ModelRole, type ProviderConfig } from "@/lib/providers";
 import { api } from "@/lib/api";
 import { Check, Plus, RotateCcw, Save, Settings2, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -9,9 +9,12 @@ import { useEffect, useState } from "react";
 const statuses: ProviderConfig["status"][] = ["local", "connected", "needs-key", "disabled"];
 
 export default function ProvidersPage() {
-  const [providers, setProviders] = useState<ProviderConfig[]>(DEFAULT_PROVIDERS);
-  const [roles, setRoles] = useState<ModelRole[]>(DEFAULT_ROLES);
+  const [providers, setProviders] = useState<ProviderConfig[]>([]);
+  const [roles, setRoles] = useState<ModelRole[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api.providers(), api.roles()])
@@ -19,10 +22,8 @@ export default function ProvidersPage() {
         setProviders(nextProviders);
         setRoles(nextRoles);
       })
-      .catch(() => {
-        setProviders(getProviders());
-        setRoles(getModelRoles());
-      });
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Failed to load providers"))
+      .finally(() => setLoading(false));
   }, []);
 
   function updateProvider(id: string, patch: Partial<ProviderConfig>) {
@@ -34,22 +35,45 @@ export default function ProvidersPage() {
   }
 
   async function saveAll() {
-    await Promise.all([api.saveProviders(providers), api.saveRoles(roles)]).catch(() => {
-      saveProviders(providers);
-      saveModelRoles(roles);
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+    setSaveError(null);
+    try {
+      await Promise.all([api.saveProviders(providers), api.saveRoles(roles)]);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1800);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    }
   }
 
-  function resetAll() {
-    setProviders(DEFAULT_PROVIDERS);
-    setRoles(DEFAULT_ROLES);
-    void Promise.all([api.saveProviders(DEFAULT_PROVIDERS), api.saveRoles(DEFAULT_ROLES)]).catch(() => {
-      saveProviders(DEFAULT_PROVIDERS);
-      saveModelRoles(DEFAULT_ROLES);
-    });
+  async function resetAll() {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [nextProviders, nextRoles] = await Promise.all([api.providers(), api.roles()]);
+      setProviders(nextProviders);
+      setRoles(nextRoles);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Reload failed");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  if (loading) return (
+    <AppShell>
+      <main className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-5 md:px-10 py-8 flex items-center justify-center">
+        <p className="text-sm text-[#9a9898]">Loading...</p>
+      </main>
+    </AppShell>
+  );
+
+  if (loadError) return (
+    <AppShell>
+      <main className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-5 md:px-10 py-8 flex items-center justify-center">
+        <p className="text-sm text-[#ff9f0a]">Error: {loadError}</p>
+      </main>
+    </AppShell>
+  );
 
   return (
     <AppShell>
@@ -61,9 +85,12 @@ export default function ProvidersPage() {
               <h1 className="text-3xl md:text-4xl font-bold">Provider and model routing</h1>
               <p className="text-[#9a9898] mt-3 max-w-2xl leading-relaxed">Assign different AI providers to different language-learning jobs. Saved through the local Nest backend; only environment variable names are stored, never raw API keys.</p>
             </div>
-            <div className="flex gap-2">
-              <button onClick={resetAll} className="border border-white/15 rounded px-4 py-2 text-sm hover:bg-[#302c2c] inline-flex items-center gap-2"><RotateCcw size={14}/> reset</button>
-              <button onClick={saveAll} className="border border-white/15 rounded px-4 py-2 text-sm bg-[#fdfcfc] text-[#201d1d] hover:bg-[#f1eeee] inline-flex items-center gap-2">{saved ? <Check size={14}/> : <Save size={14}/>} {saved ? "saved" : "save backend"}</button>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex gap-2">
+                <button onClick={resetAll} className="border border-white/15 rounded px-4 py-2 text-sm hover:bg-[#302c2c] inline-flex items-center gap-2"><RotateCcw size={14}/> reload</button>
+                <button onClick={saveAll} className="border border-white/15 rounded px-4 py-2 text-sm bg-[#fdfcfc] text-[#201d1d] hover:bg-[#f1eeee] inline-flex items-center gap-2">{saved ? <Check size={14}/> : <Save size={14}/>} {saved ? "saved" : "save backend"}</button>
+              </div>
+              {saveError && <p className="text-xs text-[#ff9f0a]">Save failed: {saveError}</p>}
             </div>
           </header>
 
@@ -106,7 +133,7 @@ export default function ProvidersPage() {
                           {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                         <select className="bg-[#201d1d] border border-white/15 rounded px-3 py-2 text-sm" value={role.model} onChange={(e) => updateRole(role.id, { model: e.target.value })}>
-                          {selectedProvider.models.map((m) => <option key={m}>{m}</option>)}
+                          {(selectedProvider?.models ?? []).map((m) => <option key={m}>{m}</option>)}
                         </select>
                         <input type="number" step="0.1" min="0" max="1" className="bg-[#201d1d] border border-white/15 rounded px-3 py-2 text-sm" value={role.temperature} onChange={(e) => updateRole(role.id, { temperature: Number(e.target.value) })} />
                       </div>

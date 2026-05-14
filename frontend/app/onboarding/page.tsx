@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, Check } from "lucide-react";
-import { LANGUAGES, DAILY_GOALS } from "@/lib/mock-data";
+import { DAILY_GOALS } from "@/lib/mock-data";
 import type { Language } from "@/lib/mock-data";
-import { saveProfile, setOnboarded } from "@/lib/storage";
 import { api } from "@/lib/api";
 
 type Step = "language" | "goal" | "name" | "done";
@@ -20,7 +19,7 @@ export default function OnboardingPage() {
     reason: "",
   });
 
-  const [languages, setLanguages] = useState<Language[]>(LANGUAGES);
+  const [languages, setLanguages] = useState<Language[]>([]);
 
   useEffect(() => {
     api.languages()
@@ -37,8 +36,6 @@ export default function OnboardingPage() {
       currentLanguage: selected.language || "es",
       dailyGoalXp: selected.goalXp,
     };
-    saveProfile(profile);
-    setOnboarded();
     api.updateMe(profile).catch(() => {});
     router.push("/dashboard");
   }

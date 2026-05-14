@@ -36,22 +36,24 @@ export type UserProfile = {
   completedStories: string[];
   lastActiveDate: string;
   todayXp: number;
+  onboarded?: boolean;
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
-  name: "LingoClaw Learner",
-  email: "learner@lingoclaw.app",
+  name: "Learner",
+  email: "",
   avatar: "🐾",
   joinDate: new Date().toISOString(),
   dailyGoalXp: 20,
   currentLanguage: "es",
-  totalXp: 48650,
-  streak: 12,
-  longestStreak: 21,
-  completedLessons: ["l1", "l2"],
-  completedStories: ["s2"],
+  totalXp: 0,
+  streak: 0,
+  longestStreak: 0,
+  completedLessons: [],
+  completedStories: [],
   lastActiveDate: new Date().toISOString().split("T")[0],
   todayXp: 0,
+  onboarded: false,
 };
 
 export function getProfile(): UserProfile {

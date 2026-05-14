@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, ArrowRight, Lock, CheckCircle, Clock, Terminal } from "lucide-react";
 import AppShell from "@/components/AppShell";
-import { DEFAULT_PROFILE, type UserProfile } from "@/lib/storage";
-import { LESSONS, LANGUAGES } from "@/lib/mock-data";
+import type { UserProfile } from "@/lib/storage";
+import type { Language, Lesson } from "@/lib/mock-data";
 import { api } from "@/lib/api";
 
-function LessonCard({ lesson, profile }: { lesson: (typeof LESSONS)[0]; profile: UserProfile }) {
+function LessonCard({ lesson, profile }: { lesson: Lesson; profile: UserProfile }) {
   const isCompleted = profile.completedLessons.includes(lesson.id);
   const isLocked = lesson.locked;
 
@@ -64,8 +64,9 @@ function LessonCard({ lesson, profile }: { lesson: (typeof LESSONS)[0]; profile:
 
 export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [languages, setLanguages] = useState(LANGUAGES);
-  const [lessons, setLessons] = useState(LESSONS);
+  const [languages, setLanguages] = useState<Language[] | null>(null);
+  const [lessons, setLessons] = useState<Lesson[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api.me(), api.languages(), api.lessons()])
@@ -74,13 +75,27 @@ export default function DashboardPage() {
         setLanguages(nextLanguages);
         setLessons(nextLessons);
       })
-      .catch(() => setProfile(DEFAULT_PROFILE));
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load dashboard"));
   }, []);
 
-  if (!profile) return null;
+  if (error) return (
+    <AppShell>
+      <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono flex items-center justify-center">
+        <p className="text-sm text-[#9a9898]">Error loading dashboard: {error}</p>
+      </div>
+    </AppShell>
+  );
+
+  if (!profile || !languages || !lessons) return (
+    <AppShell>
+      <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono flex items-center justify-center">
+        <p className="text-sm text-[#9a9898]">Loading...</p>
+      </div>
+    </AppShell>
+  );
 
   const currentLang = languages.find((l) => l.code === profile.currentLanguage) ?? languages[0];
-  const levelPct = Math.round((currentLang.xp / currentLang.totalXp) * 100);
+  const levelPct = currentLang ? Math.round((currentLang.xp / currentLang.totalXp) * 100) : 0;
 
   const todayLessons = lessons.slice(0, 4);
 
@@ -90,7 +105,7 @@ export default function DashboardPage() {
         <section className="px-5 md:px-10 py-8 border-b border-white/10">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center gap-2 text-xs text-[#9a9898] mb-2">
-              <Terminal size={14} /> ~/learn/{currentLang.code}
+              <Terminal size={14} /> ~/learn/{currentLang?.code ?? "—"}
             </div>
             <h1 className="text-3xl md:text-4xl font-bold mb-6">Learn graph</h1>
 
@@ -98,10 +113,10 @@ export default function DashboardPage() {
               <div className="border border-white/10 rounded p-4 bg-[#252121]">
                 <div className="text-xs text-[#9a9898] mb-1">Current language</div>
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl">{currentLang.flag}</span>
+                  <span className="text-2xl">{currentLang?.flag}</span>
                   <div>
-                    <div className="font-bold">{currentLang.name}</div>
-                    <div className="text-xs text-[#9a9898]">{currentLang.level}</div>
+                    <div className="font-bold">{currentLang?.name}</div>
+                    <div className="text-xs text-[#9a9898]">{currentLang?.level}</div>
                   </div>
                 </div>
               </div>
@@ -142,17 +157,17 @@ export default function DashboardPage() {
             <div className="space-y-5">
               <div className="border border-white/10 rounded p-5 bg-[#252121]">
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="text-3xl">{currentLang.flag}</span>
+                  <span className="text-3xl">{currentLang?.flag}</span>
                   <div>
-                    <div className="font-bold">{currentLang.name}</div>
-                    <div className="text-xs text-[#9a9898] mt-1">{currentLang.level}</div>
+                    <div className="font-bold">{currentLang?.name}</div>
+                    <div className="text-xs text-[#9a9898] mt-1">{currentLang?.level}</div>
                   </div>
                 </div>
                 <div className="mb-3">
                   <div className="flex justify-between text-xs mb-1.5">
                     <span className="text-[#9a9898]">Level progress</span>
                     <span className="font-medium">
-                      {currentLang.xp.toLocaleString()} / {currentLang.totalXp.toLocaleString()}
+                      {currentLang?.xp.toLocaleString()} / {currentLang?.totalXp.toLocaleString()}
                     </span>
                   </div>
                   <div className="progress-track">
@@ -190,7 +205,7 @@ export default function DashboardPage() {
               <div className="border border-white/10 rounded p-5 bg-[#252121]">
                 <h3 className="font-semibold text-sm mb-3">Your languages</h3>
                 <div className="space-y-2">
-                  {LANGUAGES.filter((l) => l.xp > 0).map((lang) => (
+                  {languages.filter((l) => l.xp > 0).map((lang) => (
                     <div key={lang.code} className="flex items-center gap-2">
                       <span className="text-xl">{lang.flag}</span>
                       <div className="flex-1">
