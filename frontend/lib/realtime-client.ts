@@ -64,7 +64,9 @@ export class RealtimeClient {
     peerConnection.ontrack = (event) => {
       if (this.remoteAudio && event.streams[0]) {
         this.remoteAudio.srcObject = event.streams[0];
-        void this.remoteAudio.play().catch(() => {});
+        void this.remoteAudio.play().catch((err) => {
+          this.emit({ type: 'error', error: `Audio playback failed: ${err.message || 'autoplay blocked or playback error'}` });
+        });
       }
     };
 
@@ -152,9 +154,23 @@ export class RealtimeClient {
     if (!this.localStream) {
       throw new Error('Microphone not initialized');
     }
-    this.localStream.getAudioTracks().forEach((track) => {
-      track.enabled = true;
-    });
+    const tracks = this.localStream.getAudioTracks();
+    const isAlreadyStreaming = tracks.some((track) => track.enabled);
+    if (!isAlreadyStreaming) {
+      tracks.forEach((track) => {
+        track.enabled = true;
+      });
+    }
+
+    if (this.remoteAudio && this.remoteAudio.paused) {
+      try {
+        await this.remoteAudio.play();
+      } catch (err: any) {
+        const message = err?.message || 'autoplay blocked or playback error';
+        this.emit({ type: 'error', error: `Audio playback failed: ${message}` });
+        throw new Error(`Audio playback failed: ${message}`);
+      }
+    }
   }
 
   stopAudioStreaming(): void {

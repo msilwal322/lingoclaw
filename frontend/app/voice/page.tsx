@@ -88,6 +88,56 @@ export default function VoicePage() {
   const [currentRealtimeTranscript, setCurrentRealtimeTranscript] = useState('');
   const [currentRealtimeResponse, setCurrentRealtimeResponse] = useState('');
   const realtimeClientRef = useRef<RealtimeClient | null>(null);
+  const currentRealtimeResponseRef = useRef('');
+  const finalizedRealtimeResponseIdsRef = useRef<Set<string>>(new Set());
+
+  const syncRealtimeResponse = useCallback((value: string | ((prev: string) => string)) => {
+    setCurrentRealtimeResponse((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      currentRealtimeResponseRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const finalizeRealtimeResponse = useCallback((response: any) => {
+    const responseId = String(response?.id ?? '');
+    if (responseId && finalizedRealtimeResponseIdsRef.current.has(responseId)) {
+      syncRealtimeResponse('');
+      return;
+    }
+
+    const streamedText = currentRealtimeResponseRef.current.trim();
+    let finalText = streamedText;
+    let finalItemId = responseId || `rt_assistant_${Date.now()}`;
+
+    if (!finalText) {
+      const outputItems = Array.isArray(response?.output) ? response.output : [];
+      for (const item of outputItems) {
+        if (item?.role !== 'assistant' || !Array.isArray(item?.content)) continue;
+        const textContent = item.content.find((c: any) => c?.type === 'text' && c?.text);
+        if (textContent?.text) {
+          finalText = String(textContent.text).trim();
+          finalItemId = String(item.id ?? finalItemId);
+          break;
+        }
+      }
+    }
+
+    syncRealtimeResponse('');
+
+    if (!finalText) return;
+    if (responseId) finalizedRealtimeResponseIdsRef.current.add(responseId);
+
+    setRealtimeConversation((prev) => [
+      ...prev,
+      {
+        id: finalItemId,
+        role: 'assistant',
+        content: finalText,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }, [syncRealtimeResponse]);
 
   const handleTranscriptSubmit = useCallback(async (transcript: string) => {
     if (!sessionId || !transcript.trim() || isSending) return;
@@ -228,8 +278,23 @@ export default function VoicePage() {
   const connectRealtime = async () => {
     setRealtimeState('connecting');
     setRealtimeError(null);
+    finalizedRealtimeResponseIdsRef.current.clear();
+    syncRealtimeResponse('');
+    setCurrentRealtimeTranscript('');
     
     try {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Realtime voice requires browser microphone support. Try a modern browser with microphone access enabled.');
+      }
+
+      // Preflight microphone access check
+      try {
+        const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        testStream.getTracks().forEach(track => track.stop());
+      } catch (micErr: any) {
+        throw new Error(`Microphone access denied or unavailable. ${micErr.name === 'NotAllowedError' ? 'Please grant microphone permissions and try again.' : 'Check your device settings.'}`);
+      }
+
       const config = await api.createRealtimeSession();
 
       const client = new RealtimeClient({
@@ -258,7 +323,10 @@ export default function VoicePage() {
       client.on('error', (event: any) => {
         console.error('Realtime error:', event.error);
         setRealtimeError(event.error);
-        setRealtimeState('error');
+        if (realtimeClientRef.current === client) {
+          setRealtimeState('error');
+          setIsRealtimeStreaming(false);
+        }
       });
 
       client.on('session.created', (event: any) => {
@@ -294,40 +362,29 @@ export default function VoicePage() {
       });
 
       client.on('response.text.delta', (event: any) => {
-        setCurrentRealtimeResponse(prev => prev + event.delta);
+        syncRealtimeResponse(prev => prev + (event.delta ?? ''));
       });
 
       client.on('response.text.done', (event: any) => {
-        if (!event.text) return;
-        setCurrentRealtimeResponse(event.text);
+        if (!event.text || currentRealtimeResponseRef.current.trim()) return;
+        syncRealtimeResponse(String(event.text));
       });
 
       client.on('response.done', (event: any) => {
         console.log('Response done:', event.response);
-        
-        // Find the assistant's message text
-        const outputItems = event.response.output || [];
-        for (const item of outputItems) {
-          if (item.role === 'assistant' && item.content) {
-            const textContent = item.content.find((c: any) => c.type === 'text');
-            if (textContent && textContent.text) {
-              setRealtimeConversation(prev => [
-                ...prev,
-                {
-                  id: item.id,
-                  role: 'assistant',
-                  content: textContent.text,
-                  createdAt: new Date().toISOString(),
-                }
-              ]);
-              setCurrentRealtimeResponse('');
-            }
-          }
-        }
+        finalizeRealtimeResponse(event.response);
       });
 
-      // Connect to the WebSocket
-      await client.connect();
+      // Connect to the WebSocket with timeout
+      const connectPromise = client.connect();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          client.disconnect();
+          reject(new Error('Connection timeout after 15 seconds. Check your network and try again.'));
+        }, 15000);
+      });
+      
+      await Promise.race([connectPromise, timeoutPromise]);
       realtimeClientRef.current = client;
       
     } catch (err) {
@@ -335,6 +392,14 @@ export default function VoicePage() {
       const errorMsg = err instanceof Error ? err.message : 'Failed to connect';
       setRealtimeError(errorMsg);
       setRealtimeState('error');
+      setIsRealtimeStreaming(false);
+      syncRealtimeResponse('');
+      
+      // Cleanup on connection failure
+      if (realtimeClientRef.current) {
+        realtimeClientRef.current.disconnect();
+        realtimeClientRef.current = null;
+      }
     }
   };
 
@@ -345,6 +410,8 @@ export default function VoicePage() {
     }
     setRealtimeState('disconnected');
     setIsRealtimeStreaming(false);
+    syncRealtimeResponse('');
+    setCurrentRealtimeTranscript('');
   };
 
   const toggleRealtimeStreaming = async () => {
@@ -772,6 +839,11 @@ export default function VoicePage() {
                         </div>
                       ) : (
                         <>
+                          {realtimeError && (
+                            <div className="mb-3 border border-[#ff9f0a]/30 rounded bg-[#252121] p-3 text-xs text-[#ff9f0a]">
+                              {realtimeError}
+                            </div>
+                          )}
                           {/* Conversation Log */}
                           <div className="space-y-3 mb-4 max-h-[400px] overflow-y-auto">
                             {realtimeConversation.length === 0 && !currentRealtimeTranscript && !currentRealtimeResponse ? (
