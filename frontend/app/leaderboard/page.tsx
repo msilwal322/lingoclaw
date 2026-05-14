@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Terminal, TrendingUp, Users } from "lucide-react";
 import AppShell from "@/components/AppShell";
-import { LEADERBOARD } from "@/lib/mock-data";
 import type { LeaderboardUser } from "@/lib/mock-data";
 import { api } from "@/lib/api";
 
@@ -17,10 +16,22 @@ const PERIOD_LABELS: Record<Period, string> = {
 
 export default function LeaderboardPage() {
   const [period, setPeriod] = useState<Period>("weekly");
-  const [baseData, setBaseData] = useState<LeaderboardUser[]>(LEADERBOARD);
+  const [baseData, setBaseData] = useState<LeaderboardUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.leaderboard().then(setBaseData).catch(() => {});
+    setIsLoading(true);
+    setError(null);
+    api.leaderboard()
+      .then((data) => {
+        setBaseData(data);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setError("Failed to load leaderboard data");
+        setIsLoading(false);
+      });
   }, []);
 
   const data = baseData.map((u) => ({
@@ -29,6 +40,71 @@ export default function LeaderboardPage() {
   }));
 
   const currentUser = data.find((u) => u.isCurrentUser);
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-2xl mx-auto">
+          <div className="flex items-center gap-2 text-xs text-[#9a9898] mb-2">
+            <Terminal size={14} /> ~/community
+          </div>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-1">Community benchmarks</h1>
+            <p className="text-muted text-sm">See how your learning pace compares with other learners.</p>
+          </div>
+          <div className="border border-white/10 rounded p-8 bg-[#252121] text-center">
+            <div className="animate-pulse text-muted">Loading leaderboard...</div>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppShell>
+        <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-2xl mx-auto">
+          <div className="flex items-center gap-2 text-xs text-[#9a9898] mb-2">
+            <Terminal size={14} /> ~/community
+          </div>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-1">Community benchmarks</h1>
+            <p className="text-muted text-sm">See how your learning pace compares with other learners.</p>
+          </div>
+          <div className="border border-white/10 rounded p-8 bg-[#252121]">
+            <div className="text-center">
+              <div className="text-[#ff453a] mb-2">⚠ {error}</div>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="text-sm text-[#007aff] hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (baseData.length === 0) {
+    return (
+      <AppShell>
+        <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-2xl mx-auto">
+          <div className="flex items-center gap-2 text-xs text-[#9a9898] mb-2">
+            <Terminal size={14} /> ~/community
+          </div>
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold mb-1">Community benchmarks</h1>
+            <p className="text-muted text-sm">See how your learning pace compares with other learners.</p>
+          </div>
+          <div className="border border-white/10 rounded p-8 bg-[#252121] text-center text-muted">
+            No leaderboard data available yet. Start learning to appear on the board!
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -65,14 +141,14 @@ export default function LeaderboardPage() {
               <Users size={14} style={{color: "#5ac8fa"}} />
               <span className="text-muted">Active learners</span>
             </div>
-            <div className="text-2xl font-bold">2,847</div>
+            <div className="text-2xl font-bold">{data.length}</div>
           </div>
           <div className="border border-white/10 rounded p-4 bg-[#252121]">
             <div className="flex items-center gap-2 text-sm mb-2">
               <TrendingUp size={14} style={{color: "#30d158"}} />
-              <span className="text-muted">Avg. progress</span>
+              <span className="text-muted">Avg. XP</span>
             </div>
-            <div className="text-2xl font-bold">47 lessons</div>
+            <div className="text-2xl font-bold">{Math.round(data.reduce((sum, u) => sum + u.xp, 0) / data.length).toLocaleString()}</div>
           </div>
         </div>
 
@@ -118,13 +194,13 @@ export default function LeaderboardPage() {
               <div className="flex-1">
                 <div className="font-bold">Your position</div>
                 <div className="text-sm text-muted">
-                  #{currentUser.rank} • {currentUser.xp.toLocaleString()} lessons completed
+                  #{currentUser.rank} • {currentUser.xp.toLocaleString()} XP
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-xs text-muted mb-1">Next benchmark</div>
                 <div className="text-sm font-bold" style={{color: "#007aff"}}>
-                  +{(data[currentUser.rank - 2]?.xp ?? 0) - currentUser.xp}
+                  {currentUser.rank === 1 ? "🏆 Top rank!" : `+${(data[currentUser.rank - 2]?.xp ?? 0) - currentUser.xp}`}
                 </div>
               </div>
             </div>

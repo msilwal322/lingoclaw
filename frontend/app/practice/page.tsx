@@ -1,31 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, X, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import Link from "next/link";
+import { api } from "@/lib/api";
 
 type Mode = "menu" | "flashcards" | "quiz";
 type FlipState = "front" | "back";
 
-const FLASHCARDS = [
-  { front: "Hola", back: "Hello", example: "¡Hola! ¿Cómo estás?", phonetic: "OH-lah" },
-  { front: "Gracias", back: "Thank you", example: "Muchas gracias por tu ayuda.", phonetic: "GRAH-see-ahs" },
-  { front: "Por favor", back: "Please", example: "Un café, por favor.", phonetic: "por fah-VOR" },
-  { front: "Lo siento", back: "I'm sorry", example: "Lo siento mucho.", phonetic: "loh see-EN-toh" },
-  { front: "¿Dónde está...?", back: "Where is...?", example: "¿Dónde está el baño?", phonetic: "DON-deh es-TAH" },
-  { front: "No entiendo", back: "I don't understand", example: "Lo siento, no entiendo.", phonetic: "noh en-tee-EN-doh" },
-  { front: "¿Cuánto cuesta?", back: "How much does it cost?", example: "¿Cuánto cuesta este libro?", phonetic: "KWAN-toh KWES-tah" },
-  { front: "Hablas inglés", back: "Do you speak English?", example: "¿Hablas inglés?", phonetic: "AH-blahs een-GLES" },
-];
-
-const FILL_BLANKS = [
-  { sentence: "Me llamo ___", translation: "My name is ___", answer: "Carlos", hint: "A common Spanish name" },
-  { sentence: "___ es una manzana roja", translation: "___ is a red apple", answer: "Esta", hint: "'This' (feminine)" },
-  { sentence: "Tengo ___ años", translation: "I am ___ years old", answer: "veinte", hint: "The number 20" },
-  { sentence: "Quiero ___ agua", translation: "I want ___ water", answer: "más", hint: "Think 'more'" },
-  { sentence: "La tienda está ___", translation: "The store is ___", answer: "cerrada", hint: "Opposite of open" },
-];
+type Flashcard = { front: string; back: string; example: string; phonetic: string };
+type FillBlank = { sentence: string; translation: string; answer: string; hint: string };
 
 export default function PracticePage() {
   const [mode, setMode] = useState<Mode>("menu");
@@ -33,20 +18,48 @@ export default function PracticePage() {
   const [flip, setFlip] = useState<FlipState>("front");
   const [known, setKnown] = useState<Set<number>>(new Set());
   const [unknown, setUnknown] = useState<Set<number>>(new Set());
+  const [currentLanguage, setCurrentLanguage] = useState<string>("Spanish");
+  const [currentLangCode, setCurrentLangCode] = useState<string>("es");
 
   const [fillIdx, setFillIdx] = useState(0);
   const [fillInput, setFillInput] = useState("");
   const [fillState, setFillState] = useState<"idle" | "correct" | "wrong">("idle");
   const [fillScore, setFillScore] = useState(0);
 
-  const card = FLASHCARDS[cardIdx];
-  const fillItem = FILL_BLANKS[fillIdx];
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [fillBlanks, setFillBlanks] = useState<FillBlank[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.me().then((profile) => {
+      const langCode = profile.currentLanguage;
+      setCurrentLangCode(langCode);
+      api.languages().then((langs) => {
+        const lang = langs.find((l) => l.code === langCode);
+        if (lang) setCurrentLanguage(lang.name);
+      }).catch(() => {});
+      
+      // Fetch practice content for the current language
+      api.practice(langCode).then((content) => {
+        setFlashcards(content.flashcards);
+        setFillBlanks(content.fillBlanks);
+        setLoading(false);
+      }).catch(() => {
+        setLoading(false);
+      });
+    }).catch(() => {
+      setLoading(false);
+    });
+  }, []);
+
+  const card = flashcards[cardIdx];
+  const fillItem = fillBlanks[fillIdx];
 
   function nextCard(verdict: "known" | "unknown") {
     if (verdict === "known") setKnown((s) => new Set([...s, cardIdx]));
     else setUnknown((s) => new Set([...s, cardIdx]));
     setFlip("front");
-    if (cardIdx + 1 >= FLASHCARDS.length) setMode("menu");
+    if (cardIdx + 1 >= flashcards.length) setMode("menu");
     else setCardIdx((i) => i + 1);
   }
 
@@ -59,7 +72,7 @@ export default function PracticePage() {
   function nextFill() {
     setFillInput("");
     setFillState("idle");
-    if (fillIdx + 1 >= FILL_BLANKS.length) setMode("menu");
+    if (fillIdx + 1 >= fillBlanks.length) setMode("menu");
     else setFillIdx((i) => i + 1);
   }
 
@@ -70,7 +83,20 @@ export default function PracticePage() {
           <div className="mb-8">
             <h1 className="text-2xl font-bold mb-1">Practice</h1>
             <p className="text-muted text-sm">Reinforce what you&apos;ve learned with different practice modes.</p>
+            <p className="text-xs text-[#6a6868] mt-2">
+              Current language: {currentLanguage}
+            </p>
           </div>
+
+          {loading && (
+            <div className="text-center py-8 text-muted">Loading practice content...</div>
+          )}
+
+          {!loading && (flashcards.length === 0 && fillBlanks.length === 0) && (
+            <div className="border border-white/10 rounded p-5 mb-8 bg-[#252121]">
+              <p className="text-sm text-muted">No practice content available for {currentLanguage} yet.</p>
+            </div>
+          )}
 
           {/* Score from last round */}
           {(known.size + unknown.size > 0) && (
@@ -86,7 +112,9 @@ export default function PracticePage() {
             </div>
           )}
 
+          {!loading && (
           <div className="grid md:grid-cols-2 gap-5">
+            {flashcards.length > 0 && (
             <button
               onClick={() => {
                 setCardIdx(0);
@@ -103,11 +131,13 @@ export default function PracticePage() {
                 Review vocabulary cards. Flip to reveal translations and mark what you know.
               </p>
               <div className="flex items-center gap-2 mt-4">
-                <span className="text-xs font-medium" style={{color: "#007aff"}}>{FLASHCARDS.length} cards</span>
-                <span className="text-xs text-muted">• Spanish vocabulary</span>
+                <span className="text-xs font-medium" style={{color: "#007aff"}}>{flashcards.length} cards</span>
+                <span className="text-xs text-muted">• {currentLanguage}</span>
               </div>
             </button>
+            )}
 
+            {fillBlanks.length > 0 && (
             <button
               onClick={() => {
                 setFillIdx(0);
@@ -124,10 +154,11 @@ export default function PracticePage() {
                 Complete sentences by typing the missing word. Tests recall over recognition.
               </p>
               <div className="flex items-center gap-2 mt-4">
-                <span className="text-xs font-medium" style={{color: "#5ac8fa"}}>{FILL_BLANKS.length} questions</span>
-                <span className="text-xs text-muted">• Spanish sentences</span>
+                <span className="text-xs font-medium" style={{color: "#5ac8fa"}}>{fillBlanks.length} questions</span>
+                <span className="text-xs text-muted">• {currentLanguage}</span>
               </div>
             </button>
+            )}
 
             <Link href="/lesson/l3" className="workbench-card-hover p-6 block">
               <div className="text-4xl mb-4">🎮</div>
@@ -152,13 +183,14 @@ export default function PracticePage() {
               </div>
             </Link>
           </div>
+          )}
         </div>
       </AppShell>
     );
   }
 
   if (mode === "flashcards") {
-    const progressPct = Math.round((cardIdx / FLASHCARDS.length) * 100);
+    const progressPct = Math.round((cardIdx / flashcards.length) * 100);
     return (
       <AppShell>
         <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-xl mx-auto">
@@ -167,7 +199,7 @@ export default function PracticePage() {
               <ChevronLeft size={16} /> Back
             </button>
             <div className="text-sm text-muted">
-              {cardIdx + 1} / {FLASHCARDS.length}
+              {cardIdx + 1} / {flashcards.length}
             </div>
           </div>
 
@@ -183,7 +215,7 @@ export default function PracticePage() {
           >
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <span className="text-xs text-muted uppercase tracking-wider">
-                {flip === "front" ? "Spanish" : "English"}
+                {flip === "front" ? currentLanguage : "English"}
               </span>
               <span className="text-xs" style={{color: "#007aff"}}>Tap to flip</span>
             </div>
@@ -237,7 +269,7 @@ export default function PracticePage() {
   }
 
   if (mode === "quiz") {
-    const progressPct = Math.round((fillIdx / FILL_BLANKS.length) * 100);
+    const progressPct = Math.round((fillIdx / fillBlanks.length) * 100);
     return (
       <AppShell>
         <div className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-6 py-8 max-w-xl mx-auto">
@@ -305,7 +337,7 @@ export default function PracticePage() {
             </button>
           ) : (
             <button onClick={nextFill} className="btn-workbench-primary w-full flex items-center justify-center gap-2">
-              {fillIdx + 1 >= FILL_BLANKS.length ? "See Results" : "Next"} <ChevronRight size={18} />
+              {fillIdx + 1 >= fillBlanks.length ? "See Results" : "Next"} <ChevronRight size={18} />
             </button>
           )}
 

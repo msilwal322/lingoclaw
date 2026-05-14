@@ -3,14 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, RotateCcw, Mic, BookOpen } from "lucide-react";
 import AppShell from "@/components/AppShell";
-import { INITIAL_CHAT, CHAT_STARTERS, type ChatMessage } from "@/lib/mock-data";
+import { CHAT_STARTERS, type ChatMessage } from "@/lib/mock-data";
 import { api } from "@/lib/api";
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<string>("Spanish");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -19,7 +20,18 @@ export default function ChatPage() {
   }, [messages, isTyping]);
 
   useEffect(() => {
-    api.createChatSession().then((session) => setSessionId(session.id)).catch(() => setSessionId(null));
+    // Create chat session
+    api.createChatSession().then((session) => {
+      setSessionId(session.id);
+    }).catch(() => setSessionId(null));
+    
+    // Load current language name
+    Promise.all([api.me(), api.languages()])
+      .then(([profile, langs]) => {
+        const lang = langs.find((l) => l.code === profile.currentLanguage);
+        if (lang) setCurrentLanguage(lang.name);
+      })
+      .catch(() => {});
   }, []);
 
   async function sendMessage(text?: string) {
@@ -55,9 +67,10 @@ export default function ChatPage() {
   }
 
   function reset() {
-    setMessages(INITIAL_CHAT);
+    setMessages([]);
     setInput("");
     setIsTyping(false);
+    api.createChatSession().then((session) => setSessionId(session.id)).catch(() => setSessionId(null));
   }
 
   return (
@@ -69,13 +82,13 @@ export default function ChatPage() {
             <div className="w-10 h-10 rounded flex items-center justify-center text-xl border border-white/10 bg-[#302c2c]">
               🐾
             </div>
-            <div>
-              <div className="font-bold text-sm">Claw</div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full" style={{background: "#30d158"}} />
-                <span className="text-xs text-muted">AI Language Tutor • Spanish</span>
+              <div>
+                <div className="font-bold text-sm">Claw</div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full" style={{background: "#30d158"}} />
+                  <span className="text-xs text-muted">AI Language Tutor • {currentLanguage}</span>
+                </div>
               </div>
-            </div>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -88,23 +101,23 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Starters */}
-        {messages.length <= 1 && (
-          <div className="px-6 py-4 flex-shrink-0 border-b border-white/10">
-            <p className="text-xs text-muted mb-3 uppercase tracking-wider font-medium">Try asking:</p>
-            <div className="flex flex-wrap gap-2">
-              {CHAT_STARTERS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => sendMessage(s)}
-                  className="text-xs px-3 py-2 rounded border border-white/10 bg-[#252121] hover:border-white/20 hover:bg-[#302c2c] transition-all"
-                >
-                  {s}
-                </button>
-              ))}
+          {/* Starters */}
+          {messages.length === 0 && (
+            <div className="px-6 py-4 flex-shrink-0 border-b border-white/10">
+              <p className="text-xs text-muted mb-3 uppercase tracking-wider font-medium">Try asking:</p>
+              <div className="flex flex-wrap gap-2">
+                {CHAT_STARTERS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => sendMessage(s)}
+                    className="text-xs px-3 py-2 rounded border border-white/10 bg-[#252121] hover:border-white/20 hover:bg-[#302c2c] transition-all"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
@@ -161,7 +174,7 @@ export default function ChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Message Claw... (English or Spanish)"
+                placeholder={`Message Claw... (${currentLanguage} or English)`}
                 className="flex-1 bg-transparent text-white placeholder-[#6a6868] text-sm focus:outline-none"
               />
               <button className="text-muted hover:text-[#007aff] transition-colors">

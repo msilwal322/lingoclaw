@@ -167,10 +167,10 @@ export default function OnboardingPage() {
         )}
       </div>
 
-      {/* Local-first notice */}
+      {/* Backend-backed notice */}
       <div className="border border-white/10 rounded p-4 mt-8 text-xs text-muted bg-[#252121] leading-relaxed max-w-lg">
-        <div style={{color: "#30d158"}} className="mb-1">● local-first workspace</div>
-        Preferences sync to the local backend when available. No external account or cloud service needed.
+        <div style={{color: "#30d158"}} className="mb-1">● backend-backed workspace</div>
+        Preferences and progress sync to the local backend. No external account or cloud service needed.
       </div>
     </div>
   );

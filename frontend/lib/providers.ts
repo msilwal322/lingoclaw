@@ -34,8 +34,8 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     baseUrl: "http://localhost:11434/v1",
     apiKeyRef: "LINGOCLAW_OPENAI_KEY",
     status: "local",
-    notes: "Works with Ollama, LM Studio, vLLM, or any OpenAI-shaped endpoint.",
-    models: ["qwen3:8b", "llama3.2", "gpt-4.1-mini"],
+    notes: "Works with Ollama, LM Studio, vLLM, or any OpenAI-shaped endpoint. For realtime voice, point to an OpenAI-compatible realtime endpoint.",
+    models: ["qwen3:8b", "llama3.2", "gpt-4.1-mini", "gpt-realtime-mini", "gpt-4o-realtime-preview"],
   },
   {
     id: "anthropic",
@@ -81,12 +81,12 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
 
 export const DEFAULT_ROLES: ModelRole[] = [
   { id: "tutor-chat", label: "Tutor chat", purpose: "Socratic corrections, grammar explanations, and adaptive conversation.", providerId: "anthropic", model: "claude-sonnet-4-5", temperature: 0.7, enabled: true },
-  { id: "voice-talk", label: "Voice talk brain", purpose: "Low-latency spoken roleplay with short turns and corrections.", providerId: "openai-compatible", model: "qwen3:8b", temperature: 0.5, enabled: true },
+  { id: "stt", label: "Speech to text", purpose: "Transcribe learner speech for voice talk and pronunciation checks.", providerId: "whisper", model: "small", temperature: 0, enabled: true },
+  { id: "voice-talk", label: "Voice talk brain", purpose: "Low-latency spoken roleplay with short turns and corrections. Realtime-capable models preferred.", providerId: "openai-compatible", model: "gpt-realtime-mini", temperature: 0.5, enabled: true },
+  { id: "tts", label: "Text to speech", purpose: "Pronunciation playback and listening comprehension prompts.", providerId: "piper", model: "es_ES-sharvard-medium", temperature: 0, enabled: true },
   { id: "lesson-gen", label: "Lesson generator", purpose: "Generate drills, stories, cloze tests, and spaced-repetition cards.", providerId: "openrouter", model: "qwen/qwen-2.5-72b-instruct", temperature: 0.8, enabled: true },
   { id: "translation", label: "Translation", purpose: "Literal and natural translations with word-by-word glosses.", providerId: "openai-compatible", model: "llama3.2", temperature: 0.2, enabled: true },
   { id: "evaluation", label: "Evaluation", purpose: "Grade answers, detect mistakes, and produce concise feedback.", providerId: "anthropic", model: "claude-haiku-4-5", temperature: 0.1, enabled: true },
-  { id: "tts", label: "Text to speech", purpose: "Pronunciation playback and listening comprehension prompts.", providerId: "piper", model: "es_ES-sharvard-medium", temperature: 0, enabled: true },
-  { id: "stt", label: "Speech to text", purpose: "Transcribe learner speech for voice talk and pronunciation checks.", providerId: "whisper", model: "small", temperature: 0, enabled: true },
 ];
 
 export function getProviders(): ProviderConfig[] {

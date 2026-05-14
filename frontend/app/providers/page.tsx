@@ -79,7 +79,7 @@ export default function ProvidersPage() {
     <AppShell>
       <main className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-5 md:px-10 py-8">
         <div className="max-w-7xl mx-auto">
-          <header className="flex flex-wrap items-start justify-between gap-4 mb-8">
+            <header className="flex flex-wrap items-start justify-between gap-4 mb-6">
             <div>
               <div className="text-xs text-[#9a9898] mb-2">settings/providers.toml</div>
               <h1 className="text-3xl md:text-4xl font-bold">Provider and model routing</h1>
@@ -93,6 +93,16 @@ export default function ProvidersPage() {
               {saveError && <p className="text-xs text-[#ff9f0a]">Save failed: {saveError}</p>}
             </div>
           </header>
+
+          <div className="mb-6 border border-white/10 rounded bg-[#252121] p-4">
+            <div className="text-sm font-bold mb-2">Voice configuration notes</div>
+            <ul className="text-xs text-[#9a9898] space-y-1 leading-relaxed">
+              <li>• For <strong>stt</strong> (speech-to-text): assign a provider with speech recognition (e.g., Whisper.cpp)</li>
+              <li>• For <strong>voice-talk</strong>: use a low-latency LLM model. OpenAI-compatible realtime models like <code className="text-[#fdfcfc]">gpt-realtime-mini</code> or <code className="text-[#fdfcfc]">gpt-4o-realtime-preview</code> are ideal when available.</li>
+              <li>• For <strong>tts</strong> (text-to-speech): assign a TTS provider (e.g., Piper TTS)</li>
+              <li>• Note: Live audio transport (WebSocket/realtime streaming) is not yet implemented. Voice page shows configuration status.</li>
+            </ul>
+          </div>
 
           <section className="grid xl:grid-cols-[1fr_1.15fr] gap-5">
             <div className="border border-white/10 rounded bg-[#161414] overflow-hidden">
@@ -122,11 +132,21 @@ export default function ProvidersPage() {
               <div className="divide-y divide-white/10">
                 {roles.map((role) => {
                   const selectedProvider = providers.find((p) => p.id === role.providerId) ?? providers[0];
+                  const isVoiceRole = ['stt', 'voice-talk', 'tts'].includes(role.id);
+                  const isRealtimeModel = role.model.toLowerCase().includes('realtime');
                   return (
                     <div key={role.id} className="p-4 grid lg:grid-cols-[180px_1fr] gap-4">
                       <div>
-                        <div className="font-bold text-sm mb-1">{role.label}</div>
+                        <div className="font-bold text-sm mb-1 flex items-center gap-2">
+                          {role.label}
+                          {isVoiceRole && <span className="text-[10px] border border-white/15 rounded px-1.5 py-0.5 text-[#9a9898]">voice</span>}
+                        </div>
                         <p className="text-xs text-[#9a9898] leading-relaxed">{role.purpose}</p>
+                        {role.id === 'voice-talk' && isRealtimeModel && (
+                          <div className="mt-2 text-[10px] text-[#30d158] border border-[#30d158]/30 rounded px-2 py-1">
+                            ✓ Realtime-capable model selected
+                          </div>
+                        )}
                       </div>
                       <div className="grid sm:grid-cols-[1fr_1fr_90px] gap-2">
                         <select className="bg-[#201d1d] border border-white/15 rounded px-3 py-2 text-sm" value={role.providerId} onChange={(e) => updateRole(role.id, { providerId: e.target.value, model: (providers.find((p) => p.id === e.target.value)?.models[0] ?? role.model) })}>

@@ -38,8 +38,8 @@ export default function Sidebar() {
       </nav>
 
       <div className="border border-white/10 rounded p-3 text-xs text-[#9a9898] bg-[#252121] leading-relaxed">
-        <div className="text-[#30d158] mb-1">● local-first</div>
-        Keys stay in your environment. This UI stores mock provider routing in localStorage only.
+        <div className="text-[#30d158] mb-1">● backend-backed</div>
+        Keys stay local. Data persists to the backend server.
       </div>
     </aside>
   );

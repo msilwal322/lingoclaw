@@ -18,6 +18,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export type LessonWithQuestions = Lesson & { questions: Question[] };
+export type GeneratedStoryRequest = { languageCode?: string; level?: string };
+export type PracticeContent = { 
+  flashcards: Array<{ front: string; back: string; example: string; phonetic: string }>;
+  fillBlanks: Array<{ sentence: string; translation: string; answer: string; hint: string }>;
+};
 
 export const api = {
   health: () => request<{ ok: boolean; service: string; time: string }>("/health"),
@@ -29,6 +34,7 @@ export const api = {
   lesson: (id: string) => request<LessonWithQuestions>(`/lessons/${encodeURIComponent(id)}`),
   completeLesson: (id: string, score: number) => request<{ profile: UserProfile; lesson: Lesson; score: number; xpEarned: number }>(`/lessons/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({ score }) }),
   stories: (lang?: string) => request<Story[]>(lang ? `/stories?lang=${encodeURIComponent(lang)}` : "/stories"),
+  generateStory: (body?: GeneratedStoryRequest) => request<Story>("/stories/generate", { method: "POST", body: JSON.stringify(body ?? {}) }),
   completeStory: (id: string) => request<{ profile: UserProfile; storyId: string }>(`/stories/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({}) }),
   achievements: () => request<Achievement[]>("/achievements"),
   leaderboard: () => request<LeaderboardUser[]>("/leaderboard"),
@@ -38,4 +44,7 @@ export const api = {
   saveRoles: (roles: ModelRole[]) => request<ModelRole[]>("/providers/roles", { method: "PUT", body: JSON.stringify(roles) }),
   createChatSession: () => request<{ id: string; createdAt: string; languageCode: string }>("/chat/sessions", { method: "POST", body: JSON.stringify({}) }),
   sendChatMessage: (sessionId: string, content: string) => request<{ message: { id: string; role: "assistant"; content: string; createdAt: string } }>(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { method: "POST", body: JSON.stringify({ content }) }),
+  createVoiceSession: () => request<{ id: string; createdAt: string; languageCode: string }>("/voice/sessions", { method: "POST", body: JSON.stringify({}) }),
+  sendVoiceTurn: (sessionId: string, transcript: string) => request<{ userMessage: { id: string; role: "user"; content: string; createdAt: string }; assistantMessage: { id: string; role: "assistant"; content: string; createdAt: string }; transcript: string; reply: string }>(`/voice/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: JSON.stringify({ transcript }) }),
+  practice: (lang?: string) => request<PracticeContent>(lang ? `/practice?lang=${encodeURIComponent(lang)}` : "/practice"),
 };

@@ -3,9 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { X, ChevronRight, Heart, CheckCircle, XCircle, Zap } from "lucide-react";
-import { QUESTIONS, LESSONS } from "@/lib/mock-data";
 import type { Question } from "@/lib/mock-data";
-import { completeLesson } from "@/lib/storage";
 import { api } from "@/lib/api";
 import type { LessonWithQuestions } from "@/lib/api";
 import Link from "next/link";
@@ -18,18 +16,26 @@ export default function LearnLessonPage() {
   const lessonId = params.lessonId as string;
 
   const [lessonData, setLessonData] = useState<LessonWithQuestions | null>(null);
-  const [questions, setQuestions] = useState<Question[]>(QUESTIONS);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     api.lesson(lessonId)
       .then((data) => {
         setLessonData(data);
         if (data.questions?.length) setQuestions(data.questions);
+        setLoading(false);
       })
-      .catch(() => {});
+      .catch((err) => {
+        setError(err.message || "Failed to load lesson");
+        setLoading(false);
+      });
   }, [lessonId]);
 
-  const lesson = lessonData ?? LESSONS.find((l) => l.id === lessonId) ?? LESSONS[0];
+  const lesson = lessonData;
 
   const [currentQ, setCurrentQ] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -59,13 +65,44 @@ export default function LearnLessonPage() {
       const xp = Math.round((score / questions.length) * (lesson?.xpReward ?? 50));
       setXpEarned(xp);
       api.completeLesson(lessonId, score).catch(() => {});
-      completeLesson(lessonId, xp);
       setDone(true);
     } else {
       setCurrentQ((q) => q + 1);
       setSelected(null);
       setAnswerState("idle");
     }
+  }
+
+  if (loading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.2) 0%, transparent 60%), #08080f" }}
+      >
+        <div className="text-center">
+          <div className="text-4xl mb-4">🐾</div>
+          <p className="text-muted">Loading lesson...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !lesson || questions.length === 0) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: "radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.2) 0%, transparent 60%), #08080f" }}
+      >
+        <div className="glass-card p-10 max-w-md w-full text-center">
+          <div className="text-6xl mb-6">⚠️</div>
+          <h1 className="text-2xl font-bold mb-2">Lesson Not Found</h1>
+          <p className="text-muted mb-8">{error || "This lesson could not be loaded."}</p>
+          <Link href="/dashboard" className="btn-primary inline-block">
+            Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (done) {

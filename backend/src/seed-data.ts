@@ -28,7 +28,76 @@ export const seed = {
     {id:'s4',lang:'fr',title:'Le Café du Coin',language:'French',flag:'🇫🇷',level:'A2',genre:'Slice of Life',excerpt:"Chaque matin, Pierre s'arrêtait au même café pour prendre son croissant et son café au lait...",content:`Chaque matin, Pierre s'arrêtait au même café pour prendre son croissant et son café au lait. C'était sa routine depuis vingt ans. Marie, la propriétaire, connaissait sa commande par cœur.\n\n—Votre café, monsieur Pierre —disait-elle avec un sourire chaleureux.\n\nUn matin d'octobre, une nouvelle cliente entra dans le café. Elle semblait perdue, tenant une carte de la ville dans ses mains.\n\n—Excusez-moi, parlez-vous anglais ? —demanda-t-elle avec un accent américain.\n\nPierre, qui avait étudié l'anglais au lycée, se leva.\n\n—Un peu, oui. Je peux vous aider ?\n\nLa jeune femme cherchait le musée d'Orsay. Pierre lui expliqua le chemin en mélangeant le français et l'anglais, avec beaucoup de gestes.\n\nElle rit de bon cœur. —Merci beaucoup ! Je m'appelle Sophie.\n\n—Pierre. Enchantée.`,readTime:4,wordsCount:175,completed:false}
   ],
   achievements:[{id:'a1',title:'First lesson',description:'Complete one backend-tracked lesson',icon:'✓',earned:false}],
-  providers:[{id:'openai-compatible',name:'OpenAI compatible',kind:'llm',baseUrl:'http://localhost:11434/v1',apiKeyRef:'LINGOCLAW_OPENAI_KEY',status:'local',notes:'Works with Ollama, LM Studio, vLLM, or any OpenAI-shaped endpoint.',models:['qwen3:8b','llama3.2','gpt-4.1-mini']},{id:'anthropic',name:'Anthropic',kind:'llm',baseUrl:'https://api.anthropic.com/v1',apiKeyRef:'ANTHROPIC_API_KEY',status:'needs-key',notes:'Good fit for tutor chat.',models:['claude-sonnet-4-5','claude-haiku-4-5']}],
-  roles:[{id:'tutor-chat',label:'Tutor chat',purpose:'Socratic corrections, grammar explanations, and adaptive conversation.',providerId:'anthropic',model:'claude-sonnet-4-5',temperature:0.7,enabled:true}],
-  chatSessions:[] as any[], chatMessages:[] as any[]
+  providers:[{id:'openai-compatible',name:'OpenAI compatible',kind:'llm',baseUrl:'http://localhost:11434/v1',apiKeyRef:'LINGOCLAW_OPENAI_KEY',status:'local',notes:'Works with Ollama, LM Studio, vLLM, or any OpenAI-shaped endpoint. For realtime voice, point to an OpenAI-compatible realtime endpoint.',models:['qwen3:8b','llama3.2','gpt-4.1-mini','gpt-realtime-mini','gpt-4o-realtime-preview']},{id:'anthropic',name:'Anthropic',kind:'llm',baseUrl:'https://api.anthropic.com/v1',apiKeyRef:'ANTHROPIC_API_KEY',status:'needs-key',notes:'Good fit for tutor chat.',models:['claude-sonnet-4-5','claude-haiku-4-5']},{id:'piper',name:'Piper TTS',kind:'tts',baseUrl:'http://localhost:5002',apiKeyRef:'none',status:'local',notes:'Local text-to-speech voices for speaking drills.',models:['en_US-lessac-medium','es_ES-sharvard-medium','fr_FR-upmc-medium']},{id:'whisper',name:'Whisper.cpp',kind:'stt',baseUrl:'http://localhost:8080',apiKeyRef:'none',status:'local',notes:'Local speech recognition for pronunciation and conversation mode.',models:['base','small','medium']}],
+  roles:[{id:'tutor-chat',label:'Tutor chat',purpose:'Socratic corrections, grammar explanations, and adaptive conversation.',providerId:'anthropic',model:'claude-sonnet-4-5',temperature:0.7,enabled:true},{id:'stt',label:'Speech to text',purpose:'Transcribe learner speech for voice talk and pronunciation checks.',providerId:'whisper',model:'small',temperature:0,enabled:true},{id:'voice-talk',label:'Voice talk brain',purpose:'Low-latency spoken roleplay with short turns and corrections. Realtime-capable models preferred.',providerId:'openai-compatible',model:'gpt-realtime-mini',temperature:0.5,enabled:true},{id:'tts',label:'Text to speech',purpose:'Pronunciation playback and listening comprehension prompts.',providerId:'piper',model:'es_ES-sharvard-medium',temperature:0,enabled:true}],
+  chatSessions:[] as any[], chatMessages:[] as any[], voiceSessions:[] as any[], voiceMessages:[] as any[],
+  practiceContent: {
+    es: {
+      flashcards: [
+        { front: "Hola", back: "Hello", example: "¡Hola! ¿Cómo estás?", phonetic: "OH-lah" },
+        { front: "Gracias", back: "Thank you", example: "Muchas gracias por tu ayuda.", phonetic: "GRAH-see-ahs" },
+        { front: "Por favor", back: "Please", example: "Un café, por favor.", phonetic: "por fah-VOR" },
+        { front: "Lo siento", back: "I'm sorry", example: "Lo siento mucho.", phonetic: "loh see-EN-toh" },
+        { front: "¿Dónde está...?", back: "Where is...?", example: "¿Dónde está el baño?", phonetic: "DON-deh es-TAH" },
+        { front: "No entiendo", back: "I don't understand", example: "Lo siento, no entiendo.", phonetic: "noh en-tee-EN-doh" },
+        { front: "¿Cuánto cuesta?", back: "How much does it cost?", example: "¿Cuánto cuesta este libro?", phonetic: "KWAN-toh KWES-tah" },
+        { front: "Hablas inglés", back: "Do you speak English?", example: "¿Hablas inglés?", phonetic: "AH-blahs een-GLES" },
+      ],
+      fillBlanks: [
+        { sentence: "Me llamo ___", translation: "My name is ___", answer: "Carlos", hint: "A common Spanish name" },
+        { sentence: "___ es una manzana roja", translation: "___ is a red apple", answer: "Esta", hint: "'This' (feminine)" },
+        { sentence: "Tengo ___ años", translation: "I am ___ years old", answer: "veinte", hint: "The number 20" },
+        { sentence: "Quiero ___ agua", translation: "I want ___ water", answer: "más", hint: "Think 'more'" },
+        { sentence: "La tienda está ___", translation: "The store is ___", answer: "cerrada", hint: "Opposite of open" },
+      ]
+    },
+    ja: {
+      flashcards: [
+        { front: "こんにちは", back: "Hello", example: "こんにちは！元気ですか？", phonetic: "kon-nee-chee-wah" },
+        { front: "ありがとう", back: "Thank you", example: "ありがとうございます。", phonetic: "ah-ree-gah-toh" },
+        { front: "すみません", back: "Excuse me / Sorry", example: "すみません、トイレはどこですか？", phonetic: "soo-mee-mah-sen" },
+        { front: "わかりません", back: "I don't understand", example: "わかりません、もう一度お願いします。", phonetic: "wah-kah-ree-mah-sen" },
+        { front: "おはよう", back: "Good morning", example: "おはようございます。", phonetic: "oh-hah-yoh" },
+        { front: "さようなら", back: "Goodbye", example: "さようなら、また明日。", phonetic: "sah-yoh-nah-rah" },
+      ],
+      fillBlanks: [
+        { sentence: "わたしは___です", translation: "I am ___", answer: "学生", hint: "student" },
+        { sentence: "これは___です", translation: "This is ___", answer: "本", hint: "book" },
+        { sentence: "___をください", translation: "Please give me ___", answer: "水", hint: "water" },
+        { sentence: "今日は___です", translation: "Today is ___", answer: "月曜日", hint: "Monday" },
+      ]
+    },
+    fr: {
+      flashcards: [
+        { front: "Bonjour", back: "Hello / Good morning", example: "Bonjour! Comment allez-vous?", phonetic: "bon-zhoor" },
+        { front: "Merci", back: "Thank you", example: "Merci beaucoup pour votre aide.", phonetic: "mehr-see" },
+        { front: "S'il vous plaît", back: "Please", example: "Un café, s'il vous plaît.", phonetic: "seel voo pleh" },
+        { front: "Excusez-moi", back: "Excuse me", example: "Excusez-moi, où est la gare?", phonetic: "ex-kew-zay mwah" },
+        { front: "Je ne comprends pas", back: "I don't understand", example: "Je ne comprends pas, désolé.", phonetic: "zhuh nuh kom-pron pah" },
+        { front: "Au revoir", back: "Goodbye", example: "Au revoir, à bientôt!", phonetic: "oh ruh-vwahr" },
+      ],
+      fillBlanks: [
+        { sentence: "Je m'appelle ___", translation: "My name is ___", answer: "Marie", hint: "A common French name" },
+        { sentence: "___ est rouge", translation: "___ is red", answer: "La pomme", hint: "The apple" },
+        { sentence: "J'ai ___ ans", translation: "I am ___ years old", answer: "vingt", hint: "The number 20" },
+        { sentence: "Je voudrais ___ café", translation: "I would like ___ coffee", answer: "un", hint: "Article 'a'" },
+      ]
+    },
+    de: {
+      flashcards: [
+        { front: "Hallo", back: "Hello", example: "Hallo! Wie geht es dir?", phonetic: "HAH-loh" },
+        { front: "Danke", back: "Thank you", example: "Danke für deine Hilfe.", phonetic: "DAHN-keh" },
+        { front: "Bitte", back: "Please / You're welcome", example: "Ein Kaffee, bitte.", phonetic: "BIT-teh" },
+        { front: "Entschuldigung", back: "Excuse me / Sorry", example: "Entschuldigung, wo ist der Bahnhof?", phonetic: "ent-SHOOL-dee-goong" },
+        { front: "Ich verstehe nicht", back: "I don't understand", example: "Ich verstehe nicht, tut mir leid.", phonetic: "ikh fer-SHTAY-uh nikht" },
+        { front: "Auf Wiedersehen", back: "Goodbye", example: "Auf Wiedersehen, bis morgen!", phonetic: "owf VEE-der-zay-en" },
+      ],
+      fillBlanks: [
+        { sentence: "Ich heiße ___", translation: "My name is ___", answer: "Hans", hint: "A common German name" },
+        { sentence: "Der Apfel ist ___", translation: "The apple is ___", answer: "rot", hint: "red" },
+        { sentence: "Ich bin ___ Jahre alt", translation: "I am ___ years old", answer: "zwanzig", hint: "The number 20" },
+        { sentence: "Ich möchte ___ Wasser", translation: "I would like ___ water", answer: "ein", hint: "Article 'a'" },
+      ]
+    }
+  }
 };
