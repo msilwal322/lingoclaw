@@ -2,16 +2,26 @@ export type RealtimeEvent =
   | { type: 'connected' }
   | { type: 'disconnected'; reason?: string }
   | { type: 'error'; error: string }
-  | { type: 'session.created'; session: any }
-  | { type: 'conversation.item.created'; item: any }
+  | { type: 'session.created'; session: unknown }
+  | { type: 'conversation.item.created'; item: unknown }
   | { type: 'conversation.item.input_audio_transcription.completed'; itemId: string; transcript: string }
   | { type: 'response.audio_transcript.delta'; delta: string; itemId?: string }
   | { type: 'response.audio_transcript.done'; transcript: string; itemId?: string }
   | { type: 'response.text.delta'; delta: string; itemId?: string }
   | { type: 'response.text.done'; text: string; itemId?: string }
-  | { type: 'response.done'; response: any }
+  | { type: 'response.done'; response: unknown }
   | { type: 'input_audio_buffer.speech_started' }
   | { type: 'input_audio_buffer.speech_stopped' };
+
+type JsonObject = Record<string, unknown>;
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null;
+}
+
+function getString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
 
 export interface RealtimeConfig {
   connectUrl: string;
@@ -165,8 +175,8 @@ export class RealtimeClient {
     if (this.remoteAudio && this.remoteAudio.paused) {
       try {
         await this.remoteAudio.play();
-      } catch (err: any) {
-        const message = err?.message || 'autoplay blocked or playback error';
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'autoplay blocked or playback error';
         this.emit({ type: 'error', error: `Audio playback failed: ${message}` });
         throw new Error(`Audio playback failed: ${message}`);
       }
@@ -207,14 +217,20 @@ export class RealtimeClient {
     return this.isConnected;
   }
 
-  private send(data: any): void {
+  private send(data: unknown): void {
     if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
       return;
     }
     this.dataChannel.send(JSON.stringify(data));
   }
 
-  private handleServerEvent(data: any): void {
+  private handleServerEvent(data: unknown): void {
+    if (!isJsonObject(data)) {
+      console.log('Unhandled realtime event', undefined, data);
+      return;
+    }
+
+    const eventType = getString(data.type);
     switch (data?.type) {
       case 'session.created':
         this.emit({ type: 'session.created', session: data.session ?? data });
@@ -230,18 +246,18 @@ export class RealtimeClient {
         });
         break;
       case 'response.audio_transcript.delta':
-        this.emit({ type: 'response.audio_transcript.delta', delta: data.delta ?? '', itemId: data.item_id });
+        this.emit({ type: 'response.audio_transcript.delta', delta: getString(data.delta), itemId: getString(data.item_id) || undefined });
         break;
       case 'response.audio_transcript.done':
-        this.emit({ type: 'response.audio_transcript.done', transcript: data.transcript ?? '', itemId: data.item_id });
+        this.emit({ type: 'response.audio_transcript.done', transcript: getString(data.transcript), itemId: getString(data.item_id) || undefined });
         break;
       case 'response.text.delta':
       case 'response.output_text.delta':
-        this.emit({ type: 'response.text.delta', delta: data.delta ?? '', itemId: data.item_id });
+        this.emit({ type: 'response.text.delta', delta: getString(data.delta), itemId: getString(data.item_id) || undefined });
         break;
       case 'response.text.done':
       case 'response.output_text.done':
-        this.emit({ type: 'response.text.done', text: data.text ?? '', itemId: data.item_id });
+        this.emit({ type: 'response.text.done', text: getString(data.text), itemId: getString(data.item_id) || undefined });
         break;
       case 'response.done':
         this.emit({ type: 'response.done', response: data.response ?? data });
@@ -253,10 +269,13 @@ export class RealtimeClient {
         this.emit({ type: 'input_audio_buffer.speech_stopped' });
         break;
       case 'error':
-        this.emit({ type: 'error', error: data.error?.message || 'Unknown realtime error' });
+        this.emit({
+          type: 'error',
+          error: isJsonObject(data.error) ? getString(data.error.message, 'Unknown realtime error') : 'Unknown realtime error',
+        });
         break;
       default:
-        console.log('Unhandled realtime event', data?.type, data);
+        console.log('Unhandled realtime event', eventType, data);
     }
   }
 

@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import { api } from "@/lib/api";
 import type { ProviderConfig, ModelRole } from "@/lib/providers";
 import { RealtimeClient } from "@/lib/realtime-client";
+import type { RealtimeEvent } from "@/lib/realtime-client";
 import { AlertCircle, CheckCircle2, Mic, Radio, Volume2, Waves, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -45,6 +46,25 @@ type BrowserWindowWithSpeech = Window & typeof globalThis & {
 
 type VoiceMode = 'transcript' | 'realtime';
 type RealtimeConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+type RealtimeResponsePayload = Extract<RealtimeEvent, { type: 'response.done' }>['response'];
+type RealtimeTextContent = { type: 'text'; text: string };
+type RealtimeOutputItem = {
+  id?: string;
+  role?: string;
+  content?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isRealtimeOutputItem(value: unknown): value is RealtimeOutputItem {
+  return isRecord(value);
+}
+
+function isRealtimeTextContent(value: unknown): value is RealtimeTextContent {
+  return isRecord(value) && value.type === 'text' && typeof value.text === 'string';
+}
 
 const StatusIcon = ({ status }: { status: RoleStatus }) => {
   if (!status.exists) return <XCircle size={16} className="text-[#ff453a]" />;
@@ -99,8 +119,9 @@ export default function VoicePage() {
     });
   }, []);
 
-  const finalizeRealtimeResponse = useCallback((response: any) => {
-    const responseId = String(response?.id ?? '');
+  const finalizeRealtimeResponse = useCallback((response: RealtimeResponsePayload) => {
+    const responseRecord = isRecord(response) ? response : null;
+    const responseId = String(responseRecord?.id ?? '');
     if (responseId && finalizedRealtimeResponseIdsRef.current.has(responseId)) {
       syncRealtimeResponse('');
       return;
@@ -111,12 +132,12 @@ export default function VoicePage() {
     let finalItemId = responseId || `rt_assistant_${Date.now()}`;
 
     if (!finalText) {
-      const outputItems = Array.isArray(response?.output) ? response.output : [];
+      const outputItems = Array.isArray(responseRecord?.output) ? responseRecord.output : [];
       for (const item of outputItems) {
-        if (item?.role !== 'assistant' || !Array.isArray(item?.content)) continue;
-        const textContent = item.content.find((c: any) => c?.type === 'text' && c?.text);
-        if (textContent?.text) {
-          finalText = String(textContent.text).trim();
+        if (!isRealtimeOutputItem(item) || item.role !== 'assistant' || !Array.isArray(item.content)) continue;
+        const textContent = item.content.find(isRealtimeTextContent);
+        if (textContent) {
+          finalText = textContent.text.trim();
           finalItemId = String(item.id ?? finalItemId);
           break;
         }
@@ -291,8 +312,9 @@ export default function VoicePage() {
       try {
         const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         testStream.getTracks().forEach(track => track.stop());
-      } catch (micErr: any) {
-        throw new Error(`Microphone access denied or unavailable. ${micErr.name === 'NotAllowedError' ? 'Please grant microphone permissions and try again.' : 'Check your device settings.'}`);
+      } catch (micErr: unknown) {
+        const micErrorName = isRecord(micErr) && typeof micErr.name === 'string' ? micErr.name : '';
+        throw new Error(`Microphone access denied or unavailable. ${micErrorName === 'NotAllowedError' ? 'Please grant microphone permissions and try again.' : 'Check your device settings.'}`);
       }
 
       const config = await api.createRealtimeSession();
@@ -314,13 +336,13 @@ export default function VoicePage() {
         setRealtimeState('connected');
       });
 
-      client.on('disconnected', (event: any) => {
+      client.on('disconnected', (event: Extract<RealtimeEvent, { type: 'disconnected' }>) => {
         console.log('Realtime session disconnected:', event.reason);
         setRealtimeState('disconnected');
         setIsRealtimeStreaming(false);
       });
 
-      client.on('error', (event: any) => {
+      client.on('error', (event: Extract<RealtimeEvent, { type: 'error' }>) => {
         console.error('Realtime error:', event.error);
         setRealtimeError(event.error);
         if (realtimeClientRef.current === client) {
@@ -329,7 +351,7 @@ export default function VoicePage() {
         }
       });
 
-      client.on('session.created', (event: any) => {
+      client.on('session.created', (event: Extract<RealtimeEvent, { type: 'session.created' }>) => {
         console.log('Session created:', event.session);
       });
 
@@ -342,11 +364,11 @@ export default function VoicePage() {
         console.log('User stopped speaking');
       });
 
-      client.on('conversation.item.created', (event: any) => {
+      client.on('conversation.item.created', (event: Extract<RealtimeEvent, { type: 'conversation.item.created' }>) => {
         console.log('Conversation item created:', event.item);
       });
 
-      client.on('conversation.item.input_audio_transcription.completed', (event: any) => {
+      client.on('conversation.item.input_audio_transcription.completed', (event: Extract<RealtimeEvent, { type: 'conversation.item.input_audio_transcription.completed' }>) => {
         const userText = String(event.transcript || '').trim();
         if (!userText) return;
         setCurrentRealtimeTranscript('');
@@ -361,16 +383,16 @@ export default function VoicePage() {
         ]);
       });
 
-      client.on('response.text.delta', (event: any) => {
+      client.on('response.text.delta', (event: Extract<RealtimeEvent, { type: 'response.text.delta' }>) => {
         syncRealtimeResponse(prev => prev + (event.delta ?? ''));
       });
 
-      client.on('response.text.done', (event: any) => {
+      client.on('response.text.done', (event: Extract<RealtimeEvent, { type: 'response.text.done' }>) => {
         if (!event.text || currentRealtimeResponseRef.current.trim()) return;
         syncRealtimeResponse(String(event.text));
       });
 
-      client.on('response.done', (event: any) => {
+      client.on('response.done', (event: Extract<RealtimeEvent, { type: 'response.done' }>) => {
         console.log('Response done:', event.response);
         finalizeRealtimeResponse(event.response);
       });
