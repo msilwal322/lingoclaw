@@ -7,6 +7,9 @@ const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   allowedDevOrigins,
+  turbopack: {
+    root: import.meta.dirname,
+  },
 };
 
 export default nextConfig;

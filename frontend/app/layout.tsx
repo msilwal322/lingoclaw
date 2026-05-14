@@ -10,6 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        {/* Prevent MetaMask/web3 extensions from crashing when window.ethereum is undefined */}
+        <script dangerouslySetInnerHTML={{ __html: "window.ethereum=window.ethereum||{};" }} />
+      </head>
       <body className="bg-void text-white antialiased">{children}</body>
     </html>
   );
