@@ -23,6 +23,17 @@ export type PracticeContent = {
   flashcards: Array<{ front: string; back: string; example: string; phonetic: string }>;
   fillBlanks: Array<{ sentence: string; translation: string; answer: string; hint: string }>;
 };
+export type RealtimeConfig = {
+  transport: "webrtc";
+  connectUrl: string;
+  ephemeralKey: string;
+  model: string;
+  temperature: number;
+  languageCode: string;
+  languageName: string;
+  instructions: string;
+  voice: string;
+};
 
 export const api = {
   health: () => request<{ ok: boolean; service: string; time: string }>("/health"),
@@ -46,5 +57,6 @@ export const api = {
   sendChatMessage: (sessionId: string, content: string) => request<{ message: { id: string; role: "assistant"; content: string; createdAt: string } }>(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { method: "POST", body: JSON.stringify({ content }) }),
   createVoiceSession: () => request<{ id: string; createdAt: string; languageCode: string }>("/voice/sessions", { method: "POST", body: JSON.stringify({}) }),
   sendVoiceTurn: (sessionId: string, transcript: string) => request<{ userMessage: { id: string; role: "user"; content: string; createdAt: string }; assistantMessage: { id: string; role: "assistant"; content: string; createdAt: string }; transcript: string; reply: string }>(`/voice/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: JSON.stringify({ transcript }) }),
+  createRealtimeSession: () => request<RealtimeConfig>("/voice/realtime/session", { method: "POST", body: JSON.stringify({}) }),
   practice: (lang?: string) => request<PracticeContent>(lang ? `/practice?lang=${encodeURIComponent(lang)}` : "/practice"),
 };

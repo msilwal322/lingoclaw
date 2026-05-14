@@ -8,6 +8,7 @@ import { StoreService } from './store/store.service';
 describe('ApiController', () => {
   let c: ApiController;
   let store: StoreService;
+  let llm: LlmService;
   
   beforeEach(async () => {
     process.env.DATA_FILE = '/tmp/lingoclaw-test-db.json';
@@ -18,6 +19,7 @@ describe('ApiController', () => {
     }).compile();
     c = m.get(ApiController);
     store = m.get(StoreService);
+    llm = m.get(LlmService);
   });
 
   it('root returns name and endpoints', () => {
@@ -84,6 +86,31 @@ describe('ApiController', () => {
     if (voiceTalkRole) voiceTalkRole.enabled = voiceEnabled;
     if (tutorChatRole) tutorChatRole.enabled = tutorEnabled;
   }, 10000);
+
+  it('creates realtime bootstrap session for realtime-capable voice model', async () => {
+    const voiceTalkRole = store.db.roles.find((r: any) => r.id === 'voice-talk');
+    const openAiCompatibleProvider = store.db.providers.find((p: any) => p.id === 'openai-compatible');
+    expect(voiceTalkRole).toBeDefined();
+    expect(openAiCompatibleProvider).toBeDefined();
+
+    if (voiceTalkRole) {
+      voiceTalkRole.enabled = true;
+      voiceTalkRole.providerId = 'openai-compatible';
+      voiceTalkRole.model = 'gpt-realtime-mini';
+    }
+
+    jest.spyOn(llm, 'createRealtimeSession').mockResolvedValue({
+      connectUrl: 'https://api.openai.com/v1/realtime?model=gpt-realtime-mini',
+      ephemeralKey: 'ephemeral_test_key',
+      session: { id: 'sess_123' },
+    });
+
+    const result = await c.realtimeSession();
+    expect(result.transport).toBe('webrtc');
+    expect(result.connectUrl).toContain('/realtime');
+    expect(result.ephemeralKey).toBe('ephemeral_test_key');
+    expect(result.model).toContain('realtime');
+  });
 
   it('returns practice content for current language', () => {
     const content = c.practice();

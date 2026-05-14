@@ -3,16 +3,19 @@
 import AppShell from "@/components/AppShell";
 import { api } from "@/lib/api";
 import type { ProviderConfig, ModelRole } from "@/lib/providers";
+import { RealtimeClient } from "@/lib/realtime-client";
 import { AlertCircle, CheckCircle2, Mic, Radio, Volume2, Waves, XCircle } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type RoleStatus = {
   exists: boolean;
   enabled: boolean;
   provider?: string;
   model?: string;
+  providerBaseUrl?: string;
   isRealtimeCapable?: boolean;
+  supportsRealtimeTransport?: boolean;
 };
 
 type ConversationTurn = {
@@ -40,6 +43,9 @@ type BrowserWindowWithSpeech = Window & typeof globalThis & {
   webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
 };
 
+type VoiceMode = 'transcript' | 'realtime';
+type RealtimeConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
 const StatusIcon = ({ status }: { status: RoleStatus }) => {
   if (!status.exists) return <XCircle size={16} className="text-[#ff453a]" />;
   if (!status.enabled) return <AlertCircle size={16} className="text-[#ff9f0a]" />;
@@ -59,17 +65,29 @@ export default function VoicePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentLanguage, setCurrentLanguage] = useState<string>("Spanish");
+  const [currentLanguageCode, setCurrentLanguageCode] = useState<string>("es");
   const [languageOptions, setLanguageOptions] = useState<Array<{code: string, name: string}>>([]);
   
-  // Voice session state
+  // Voice mode
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>('transcript');
+  
+  // Transcript mode state
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [manualTranscript, setManualTranscript] = useState("");
   const [hasSpeechRecognition, setHasSpeechRecognition] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+
+  // Realtime mode state
+  const [realtimeState, setRealtimeState] = useState<RealtimeConnectionState>('disconnected');
+  const [realtimeConversation, setRealtimeConversation] = useState<ConversationTurn[]>([]);
+  const [isRealtimeStreaming, setIsRealtimeStreaming] = useState(false);
+  const [realtimeError, setRealtimeError] = useState<string | null>(null);
+  const [currentRealtimeTranscript, setCurrentRealtimeTranscript] = useState('');
+  const [currentRealtimeResponse, setCurrentRealtimeResponse] = useState('');
+  const realtimeClientRef = useRef<RealtimeClient | null>(null);
 
   const handleTranscriptSubmit = useCallback(async (transcript: string) => {
     if (!sessionId || !transcript.trim() || isSending) return;
@@ -113,7 +131,7 @@ export default function VoicePage() {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = "es-ES"; // Default to Spanish, should be dynamic based on language
+        recognition.lang = `${currentLanguageCode}-${currentLanguageCode.toUpperCase()}`;
         
         recognition.onresult = (event) => {
           const transcript = event.results[0][0].transcript;
@@ -148,7 +166,7 @@ export default function VoicePage() {
       .then((profile) => {
         api.languages().then((langs) => {
           const lang = langs.find((l) => l.code === profile.currentLanguage);
-          if (lang) setCurrentLanguage(lang.name);
+          if (lang) { setCurrentLanguage(lang.name); setCurrentLanguageCode(lang.code); }
         }).catch(() => {});
       })
       .catch(() => {});
@@ -160,8 +178,18 @@ export default function VoicePage() {
         const brain = roles.find((r: ModelRole) => r.id === "voice-talk");
         const tts = roles.find((r: ModelRole) => r.id === "tts");
         
-        const getProviderName = (id?: string) => 
-          providers.find((p: ProviderConfig) => p.id === id)?.name ?? "not configured";
+        const getProvider = (id?: string) => providers.find((p: ProviderConfig) => p.id === id);
+        const getProviderName = (id?: string) => getProvider(id)?.name ?? "not configured";
+        const supportsRealtimeTransport = (provider?: ProviderConfig) => {
+          if (!provider) return false;
+          try {
+            const url = new URL(provider.baseUrl);
+            const localHosts = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
+            return !localHosts.has(url.hostname);
+          } catch {
+            return false;
+          }
+        };
         
         setSttStatus({
           exists: !!stt,
@@ -170,12 +198,15 @@ export default function VoicePage() {
           model: stt?.model
         });
 
+        const brainProvider = brain ? getProvider(brain.providerId) : undefined;
         setVoiceTalkStatus({
           exists: !!brain,
           enabled: brain?.enabled ?? false,
           provider: brain ? getProviderName(brain.providerId) : undefined,
+          providerBaseUrl: brainProvider?.baseUrl,
           model: brain?.model,
-          isRealtimeCapable: brain?.model?.toLowerCase().includes('realtime') ?? false
+          isRealtimeCapable: brain?.model?.toLowerCase().includes('realtime') ?? false,
+          supportsRealtimeTransport: supportsRealtimeTransport(brainProvider),
         });
 
         setTtsStatus({
@@ -191,8 +222,162 @@ export default function VoicePage() {
         setError(err instanceof Error ? err.message : "Failed to load configuration");
         setLoading(false);
       });
-  }, [handleTranscriptSubmit]);
+  }, [handleTranscriptSubmit, currentLanguageCode]);
 
+  // Realtime mode functions
+  const connectRealtime = async () => {
+    setRealtimeState('connecting');
+    setRealtimeError(null);
+    
+    try {
+      const config = await api.createRealtimeSession();
+
+      const client = new RealtimeClient({
+        connectUrl: config.connectUrl,
+        ephemeralKey: config.ephemeralKey,
+        model: config.model,
+        temperature: config.temperature,
+        instructions: config.instructions,
+        voice: config.voice,
+        inputAudioTranscription: { model: 'whisper-1' },
+        turnDetection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 700 },
+      });
+
+      // Set up event listeners
+      client.on('connected', () => {
+        console.log('Realtime session connected');
+        setRealtimeState('connected');
+      });
+
+      client.on('disconnected', (event: any) => {
+        console.log('Realtime session disconnected:', event.reason);
+        setRealtimeState('disconnected');
+        setIsRealtimeStreaming(false);
+      });
+
+      client.on('error', (event: any) => {
+        console.error('Realtime error:', event.error);
+        setRealtimeError(event.error);
+        setRealtimeState('error');
+      });
+
+      client.on('session.created', (event: any) => {
+        console.log('Session created:', event.session);
+      });
+
+      client.on('input_audio_buffer.speech_started', () => {
+        console.log('User started speaking');
+        setCurrentRealtimeTranscript('listening...');
+      });
+
+      client.on('input_audio_buffer.speech_stopped', () => {
+        console.log('User stopped speaking');
+      });
+
+      client.on('conversation.item.created', (event: any) => {
+        console.log('Conversation item created:', event.item);
+      });
+
+      client.on('conversation.item.input_audio_transcription.completed', (event: any) => {
+        const userText = String(event.transcript || '').trim();
+        if (!userText) return;
+        setCurrentRealtimeTranscript('');
+        setRealtimeConversation(prev => [
+          ...prev,
+          {
+            id: event.itemId || `rt_user_${Date.now()}`,
+            role: 'user',
+            content: userText,
+            createdAt: new Date().toISOString(),
+          }
+        ]);
+      });
+
+      client.on('response.text.delta', (event: any) => {
+        setCurrentRealtimeResponse(prev => prev + event.delta);
+      });
+
+      client.on('response.text.done', (event: any) => {
+        if (!event.text) return;
+        setCurrentRealtimeResponse(event.text);
+      });
+
+      client.on('response.done', (event: any) => {
+        console.log('Response done:', event.response);
+        
+        // Find the assistant's message text
+        const outputItems = event.response.output || [];
+        for (const item of outputItems) {
+          if (item.role === 'assistant' && item.content) {
+            const textContent = item.content.find((c: any) => c.type === 'text');
+            if (textContent && textContent.text) {
+              setRealtimeConversation(prev => [
+                ...prev,
+                {
+                  id: item.id,
+                  role: 'assistant',
+                  content: textContent.text,
+                  createdAt: new Date().toISOString(),
+                }
+              ]);
+              setCurrentRealtimeResponse('');
+            }
+          }
+        }
+      });
+
+      // Connect to the WebSocket
+      await client.connect();
+      realtimeClientRef.current = client;
+      
+    } catch (err) {
+      console.error('Failed to connect to realtime session:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Failed to connect';
+      setRealtimeError(errorMsg);
+      setRealtimeState('error');
+    }
+  };
+
+  const disconnectRealtime = () => {
+    if (realtimeClientRef.current) {
+      realtimeClientRef.current.disconnect();
+      realtimeClientRef.current = null;
+    }
+    setRealtimeState('disconnected');
+    setIsRealtimeStreaming(false);
+  };
+
+  const toggleRealtimeStreaming = async () => {
+    if (!realtimeClientRef.current || realtimeState !== 'connected') return;
+
+    if (isRealtimeStreaming) {
+      realtimeClientRef.current.stopAudioStreaming();
+      setIsRealtimeStreaming(false);
+    } else {
+      try {
+        await realtimeClientRef.current.startAudioStreaming();
+        setIsRealtimeStreaming(true);
+      } catch (err) {
+        console.error('Failed to start audio streaming:', err);
+        setRealtimeError(err instanceof Error ? err.message : 'Failed to access microphone');
+      }
+    }
+  };
+
+  const resetRealtimeSession = () => {
+    disconnectRealtime();
+    setRealtimeConversation([]);
+    setRealtimeError(null);
+    setCurrentRealtimeTranscript('');
+    setCurrentRealtimeResponse('');
+  };
+
+  useEffect(() => () => {
+    if (recognitionRef.current) recognitionRef.current.stop();
+    if (realtimeClientRef.current) realtimeClientRef.current.disconnect();
+  }, []);
+
+  // Transcript mode functions
   const startSession = async () => {
     try {
       const session = await api.createVoiceSession();
@@ -233,6 +418,8 @@ export default function VoicePage() {
                         voiceTalkStatus.exists && voiceTalkStatus.enabled && 
                         ttsStatus.exists && ttsStatus.enabled;
 
+  const canUseRealtime = Boolean(voiceTalkStatus.exists && voiceTalkStatus.enabled && voiceTalkStatus.isRealtimeCapable && voiceTalkStatus.supportsRealtimeTransport);
+
   return (
     <AppShell>
       <main className="min-h-screen bg-[#201d1d] text-[#fdfcfc] font-mono px-5 md:px-10 py-8">
@@ -240,10 +427,10 @@ export default function VoicePage() {
           <div className="text-xs text-[#9a9898] mb-2">modules/voice-talk</div>
           <h1 className="text-3xl md:text-4xl font-bold mb-3">Voice talk console</h1>
           <p className="text-[#9a9898] max-w-2xl mb-2">
-            Practice language conversation with push-to-transcribe interaction.
+            Practice language conversation with either transcript turns or a live realtime session.
           </p>
           <p className="text-[#6a6868] text-xs max-w-2xl mb-8">
-            Uses browser speech recognition when available, with text input fallback. Not live streaming – this is transcript-to-response interaction.
+            Choose between transcript mode (browser speech recognition) or realtime mode (browser mic + WebRTC session bootstrap for OpenAI-compatible realtime endpoints).
           </p>
 
           {loading ? (
@@ -272,7 +459,8 @@ export default function VoicePage() {
                           Voice pipeline configured
                         </div>
                         <p className="text-xs text-[#9a9898]">
-                          All required roles (stt, voice-talk, tts) are configured and enabled. Note that live audio transport is not yet implemented.
+                          All required roles (stt, voice-talk, tts) are configured and enabled.
+                          {canUseRealtime && ' Realtime mode can also be bootstrapped for the configured remote provider.'}
                         </p>
                       </div>
                     ) : (
@@ -328,6 +516,11 @@ export default function VoicePage() {
                                 ✓ Realtime-capable model detected
                               </div>
                             )}
+                            {voiceTalkStatus.isRealtimeCapable && !voiceTalkStatus.supportsRealtimeTransport && (
+                              <div className="text-[10px] text-[#ff9f0a] border border-[#ff9f0a]/30 rounded px-2 py-1 inline-block">
+                                ⚠ Realtime model selected, but provider looks local/non-bootstrap-capable
+                              </div>
+                            )}
                             {!voiceTalkStatus.isRealtimeCapable && (
                               <div className="text-[10px] text-[#ff9f0a] border border-[#ff9f0a]/30 rounded px-2 py-1 inline-block">
                                 ⚠ Standard model (realtime model recommended)
@@ -363,130 +556,298 @@ export default function VoicePage() {
                   </div>
                 </div>
 
-                {/* Voice Conversation Interface */}
+                {/* Mode Selector */}
                 <div className="border border-white/10 rounded bg-[#161414] overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Radio size={15}/> voice conversation
+                  <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+                    <Radio size={15}/> conversation mode
+                  </div>
+                  <div className="p-6">
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          if (voiceMode === 'realtime') {
+                            disconnectRealtime();
+                          }
+                          setVoiceMode('transcript');
+                        }}
+                        className={`flex-1 border rounded px-4 py-3 font-bold text-sm transition-colors ${
+                          voiceMode === 'transcript'
+                            ? 'border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158]'
+                            : 'border-white/10 bg-[#252121] text-[#9a9898] hover:bg-[#201d1d]'
+                        }`}
+                      >
+                        Transcript Mode
+                        <div className="text-[10px] font-normal mt-1">
+                          Press-to-transcribe (fallback)
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (voiceMode === 'transcript') {
+                            resetSession();
+                          }
+                          setVoiceMode('realtime');
+                        }}
+                        disabled={!canUseRealtime}
+                        className={`flex-1 border rounded px-4 py-3 font-bold text-sm transition-colors ${
+                          voiceMode === 'realtime'
+                            ? 'border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158]'
+                            : canUseRealtime
+                            ? 'border-white/10 bg-[#252121] text-[#9a9898] hover:bg-[#201d1d]'
+                            : 'border-white/10 bg-[#252121] text-[#6a6868] cursor-not-allowed opacity-50'
+                        }`}
+                      >
+                        Realtime Mode
+                        <div className="text-[10px] font-normal mt-1">
+                          {canUseRealtime ? 'Live mic + speaker session' : 'Requires realtime model + supported remote provider'}
+                        </div>
+                      </button>
                     </div>
-                    <div className="flex gap-2">
+                  </div>
+                </div>
+
+                {/* Voice Conversation Interface - Transcript Mode */}
+                {voiceMode === 'transcript' && (
+                  <div className="border border-white/10 rounded bg-[#161414] overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Radio size={15}/> transcript conversation
+                      </div>
+                      <div className="flex gap-2">
+                        {!sessionId ? (
+                          <button 
+                            onClick={startSession}
+                            className="text-xs border border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158] rounded px-3 py-1 hover:bg-[#30d158]/20"
+                          >
+                            start session
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={resetSession}
+                            className="text-xs border border-white/20 bg-[#252121] text-[#9a9898] rounded px-3 py-1 hover:bg-[#201d1d]"
+                          >
+                            reset session
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="p-6 min-h-[320px] flex flex-col justify-between">
                       {!sessionId ? (
-                        <button 
-                          onClick={startSession}
-                          className="text-xs border border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158] rounded px-3 py-1 hover:bg-[#30d158]/20"
-                        >
-                          start session
-                        </button>
+                        <div className="text-center text-[#6a6868] py-12">
+                          Click &ldquo;start session&rdquo; to begin a voice conversation
+                        </div>
                       ) : (
-                        <button 
-                          onClick={resetSession}
-                          className="text-xs border border-white/20 bg-[#252121] text-[#9a9898] rounded px-3 py-1 hover:bg-[#201d1d]"
-                        >
-                          reset session
-                        </button>
+                        <>
+                          {/* Conversation Log */}
+                          <div className="space-y-3 mb-4 max-h-[400px] overflow-y-auto">
+                            {conversation.length === 0 ? (
+                              <div className="text-xs text-[#6a6868] text-center py-4">
+                                Session started. Speak or type to begin conversation.
+                              </div>
+                            ) : (
+                              conversation.map((turn) => (
+                                <div 
+                                  key={turn.id} 
+                                  className={`border border-white/10 rounded p-4 ${
+                                    turn.role === "user" ? "bg-[#201d1d]" : "bg-[#252121]"
+                                  }`}
+                                >
+                                  <span className={turn.role === "user" ? "text-[#9a9898]" : "text-[#30d158]"}>
+                                    {turn.role === "user" ? "you:" : "tutor:"}
+                                  </span>{" "}
+                                  {turn.content}
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* Input Area */}
+                          {hasSpeechRecognition ? (
+                            <div className="space-y-2">
+                              <button 
+                                onClick={toggleRecording}
+                                disabled={isSending}
+                                className={`w-full border rounded px-5 py-4 font-bold inline-flex items-center justify-center gap-3 transition-colors ${
+                                  isRecording 
+                                    ? "border-[#ff453a]/30 bg-[#ff453a] text-[#fdfcfc]" 
+                                    : isSending
+                                    ? "border-white/10 bg-[#252121] text-[#6a6868] cursor-not-allowed"
+                                    : "border-white/15 bg-[#fdfcfc] text-[#201d1d] hover:bg-[#e0dfdf]"
+                                }`}
+                              >
+                                <Mic size={18}/>
+                                {isRecording ? "recording... (release to stop)" : isSending ? "processing..." : "press to speak"}
+                              </button>
+                              <div className="text-[10px] text-[#6a6868] text-center">
+                                Using browser speech recognition (local, non-streaming)
+                              </div>
+                            </div>
+                          ) : (
+                            <form onSubmit={handleManualSubmit} className="space-y-2">
+                              <textarea
+                                value={manualTranscript}
+                                onChange={(e) => setManualTranscript(e.target.value)}
+                                placeholder="Type your message here..."
+                                disabled={isSending}
+                                className="w-full bg-[#201d1d] border border-white/10 rounded px-4 py-3 text-[#fdfcfc] text-sm resize-none min-h-[80px] disabled:opacity-50"
+                              />
+                              <button 
+                                type="submit"
+                                disabled={isSending || !manualTranscript.trim()}
+                                className="w-full border border-white/15 bg-[#fdfcfc] text-[#201d1d] rounded px-5 py-3 font-bold hover:bg-[#e0dfdf] disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isSending ? "sending..." : "send message"}
+                              </button>
+                              <div className="text-[10px] text-[#6a6868] text-center">
+                                Browser speech recognition not available. Using text input fallback.
+                              </div>
+                            </form>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
-                  
-                  <div className="p-6 min-h-[320px] flex flex-col justify-between">
-                    {!sessionId ? (
-                      <div className="text-center text-[#6a6868] py-12">
-                        Click &ldquo;start session&rdquo; to begin a voice conversation
+                )}
+
+                {/* Voice Conversation Interface - Realtime Mode */}
+                {voiceMode === 'realtime' && (
+                  <div className="border border-white/10 rounded bg-[#161414] overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Radio size={15}/> realtime conversation
+                        {realtimeState === 'connected' && (
+                          <span className="text-[10px] text-[#30d158] border border-[#30d158]/30 rounded px-2 py-0.5">
+                            ● LIVE
+                          </span>
+                        )}
+                        {realtimeState === 'connecting' && (
+                          <span className="text-[10px] text-[#ff9f0a] border border-[#ff9f0a]/30 rounded px-2 py-0.5">
+                            ○ connecting...
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      <>
-                        {/* Conversation Log */}
-                        <div className="space-y-3 mb-4 max-h-[400px] overflow-y-auto">
-                          {conversation.length === 0 ? (
-                            <div className="text-xs text-[#6a6868] text-center py-4">
-                              Session started. Speak or type to begin conversation.
-                            </div>
-                          ) : (
-                            conversation.map((turn) => (
-                              <div 
-                                key={turn.id} 
-                                className={`border border-white/10 rounded p-4 ${
-                                  turn.role === "user" ? "bg-[#201d1d]" : "bg-[#252121]"
-                                }`}
+                      <div className="flex gap-2">
+                        {realtimeState === 'disconnected' ? (
+                          <button 
+                            onClick={connectRealtime}
+                            className="text-xs border border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158] rounded px-3 py-1 hover:bg-[#30d158]/20"
+                          >
+                            connect
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={resetRealtimeSession}
+                            className="text-xs border border-white/20 bg-[#252121] text-[#9a9898] rounded px-3 py-1 hover:bg-[#201d1d]"
+                          >
+                            disconnect
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="p-6 min-h-[320px] flex flex-col justify-between">
+                      {realtimeState === 'disconnected' || realtimeState === 'error' ? (
+                        <div className="text-center py-12">
+                          {realtimeError ? (
+                            <>
+                              <div className="text-[#ff453a] mb-2">Connection error</div>
+                              <div className="text-xs text-[#9a9898]">{realtimeError}</div>
+                              <button 
+                                onClick={connectRealtime}
+                                className="mt-4 text-xs border border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158] rounded px-3 py-1 hover:bg-[#30d158]/20"
                               >
-                                <span className={turn.role === "user" ? "text-[#9a9898]" : "text-[#30d158]"}>
-                                  {turn.role === "user" ? "you:" : "tutor:"}
-                                </span>{" "}
-                                {turn.content}
-                              </div>
-                            ))
+                                retry connection
+                              </button>
+                            </>
+                          ) : (
+                            <div className="text-[#6a6868]">
+                              Click &ldquo;connect&rdquo; to start a realtime voice session
+                            </div>
                           )}
                         </div>
+                      ) : realtimeState === 'connecting' ? (
+                        <div className="text-center text-[#9a9898] py-12">
+                          Connecting to realtime session...
+                        </div>
+                      ) : (
+                        <>
+                          {/* Conversation Log */}
+                          <div className="space-y-3 mb-4 max-h-[400px] overflow-y-auto">
+                            {realtimeConversation.length === 0 && !currentRealtimeTranscript && !currentRealtimeResponse ? (
+                              <div className="text-xs text-[#6a6868] text-center py-4">
+                                Connected. Click &ldquo;start speaking&rdquo; to begin.
+                              </div>
+                            ) : (
+                              <>
+                                {realtimeConversation.map((turn) => (
+                                  <div 
+                                    key={turn.id} 
+                                    className={`border border-white/10 rounded p-4 ${
+                                      turn.role === "user" ? "bg-[#201d1d]" : "bg-[#252121]"
+                                    }`}
+                                  >
+                                    <span className={turn.role === "user" ? "text-[#9a9898]" : "text-[#30d158]"}>
+                                      {turn.role === "user" ? "you:" : "tutor:"}
+                                    </span>{" "}
+                                    {turn.content}
+                                  </div>
+                                ))}
+                                {currentRealtimeTranscript && (
+                                  <div className="border border-white/10 rounded p-4 bg-[#201d1d] opacity-60">
+                                    <span className="text-[#9a9898]">you:</span> {currentRealtimeTranscript}
+                                  </div>
+                                )}
+                                {currentRealtimeResponse && (
+                                  <div className="border border-white/10 rounded p-4 bg-[#252121] opacity-60">
+                                    <span className="text-[#30d158]">tutor:</span> {currentRealtimeResponse}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
 
-                        {/* Input Area */}
-                        {hasSpeechRecognition ? (
+                          {/* Realtime Controls */}
                           <div className="space-y-2">
                             <button 
-                              onClick={toggleRecording}
-                              disabled={isSending}
+                              onClick={toggleRealtimeStreaming}
                               className={`w-full border rounded px-5 py-4 font-bold inline-flex items-center justify-center gap-3 transition-colors ${
-                                isRecording 
+                                isRealtimeStreaming
                                   ? "border-[#ff453a]/30 bg-[#ff453a] text-[#fdfcfc]" 
-                                  : isSending
-                                  ? "border-white/10 bg-[#252121] text-[#6a6868] cursor-not-allowed"
                                   : "border-white/15 bg-[#fdfcfc] text-[#201d1d] hover:bg-[#e0dfdf]"
                               }`}
                             >
                               <Mic size={18}/>
-                              {isRecording ? "recording... (release to stop)" : isSending ? "processing..." : "press to speak"}
+                              {isRealtimeStreaming ? "speaking... (click to stop)" : "start speaking"}
                             </button>
-                            <div className="text-[10px] text-[#6a6868] text-center">
-                              Using browser speech recognition (local, non-streaming)
+                            <div className="text-[10px] text-[#30d158] text-center">
+                              ✓ Live WebRTC audio session with backend-issued ephemeral auth
                             </div>
                           </div>
-                        ) : (
-                          <form onSubmit={handleManualSubmit} className="space-y-2">
-                            <textarea
-                              value={manualTranscript}
-                              onChange={(e) => setManualTranscript(e.target.value)}
-                              placeholder="Type your message here..."
-                              disabled={isSending}
-                              className="w-full bg-[#201d1d] border border-white/10 rounded px-4 py-3 text-[#fdfcfc] text-sm resize-none min-h-[80px] disabled:opacity-50"
-                            />
-                            <button 
-                              type="submit"
-                              disabled={isSending || !manualTranscript.trim()}
-                              className="w-full border border-white/15 bg-[#fdfcfc] text-[#201d1d] rounded px-5 py-3 font-bold hover:bg-[#e0dfdf] disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {isSending ? "sending..." : "send message"}
-                            </button>
-                            <div className="text-[10px] text-[#6a6868] text-center">
-                              Browser speech recognition not available. Using text input fallback.
-                            </div>
-                          </form>
-                        )}
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <aside className="space-y-4">
                 {/* Implementation Notes */}
                 <div className="border border-white/10 rounded bg-[#252121] p-4">
                   <div className="flex items-center gap-2 font-bold mb-3 text-sm">
-                    <AlertCircle size={16}/> implementation status
+                    <CheckCircle2 size={16} className="text-[#30d158]"/> implementation status
                   </div>
                   <div className="text-xs text-[#9a9898] space-y-2 leading-relaxed">
-                    <p>Voice conversation pipeline is now functional:</p>
+                    <p>Voice conversation features:</p>
                     <ul className="list-disc list-inside space-y-1 text-[#30d158]">
-                      <li>Press-to-transcribe interaction</li>
-                      <li>Browser speech recognition (when available)</li>
-                      <li>Text fallback for manual input</li>
-                      <li>Backend voice-talk role integration</li>
+                      <li>Transcript mode (fallback)</li>
+                      <li>Transcript fallback mode</li>
+                      <li>Realtime session mode (remote realtime providers only)</li>
+                      <li>Live audio input/output</li>
+                      <li>Browser WebRTC transport</li>
+                      <li>Server-side VAD</li>
                     </ul>
-                    <p className="pt-2 text-[#6a6868]">Not yet implemented:</p>
-                    <ul className="list-disc list-inside space-y-1 text-[#6a6868]">
-                      <li>WebSocket/realtime streaming</li>
-                      <li>Raw audio upload to STT</li>
-                      <li>TTS audio playback</li>
-                    </ul>
-                    <p className="pt-2">Configure roles in <Link href="/providers" className="underline text-[#fdfcfc]">provider settings</Link>.</p>
+                    <p className="pt-2">Configure your voice-talk role with a realtime model in <Link href="/providers" className="underline text-[#fdfcfc]">provider settings</Link>.</p>
                   </div>
                 </div>
 
@@ -511,7 +872,7 @@ export default function VoicePage() {
                       <option>grammar coach</option>
                     </select>
                   </label>
-                  <p className="text-[10px] text-[#6a6868] mt-3">Settings disabled until voice features are implemented</p>
+                  <p className="text-[10px] text-[#6a6868] mt-3">Settings integration coming soon</p>
                 </div>
               </aside>
             </div>

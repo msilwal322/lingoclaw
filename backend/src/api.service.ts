@@ -93,7 +93,7 @@ export class ApiService {
   }
 
   health(){ return { ok:true, service:'lingoclaw-backend', time:new Date().toISOString() }; }
-  root(){ return { name:'lingoclaw-backend', status:'ok', time:new Date().toISOString(), endpoints:['/health','/languages','/me','/me/progress','/lessons','/lessons/:id','/stories','/stories/generate','/achievements','/leaderboard','/providers','/providers/roles','/chat/sessions','/voice/sessions','/voice/sessions/:id/turns','/practice'] }; }
+  root(){ return { name:'lingoclaw-backend', status:'ok', time:new Date().toISOString(), endpoints:['/health','/languages','/me','/me/progress','/lessons','/lessons/:id','/stories','/stories/generate','/achievements','/leaderboard','/providers','/providers/roles','/chat/sessions','/voice/sessions','/voice/sessions/:id/turns','/voice/realtime/session','/practice'] }; }
   languages(){ return this.store.db.languages; }
   profile(){ return this.store.db.profile; }
   updateProfile(patch:any){ this.store.db.profile={...this.store.db.profile,...patch}; this.store.save(); return this.profile(); }
@@ -293,6 +293,44 @@ export class ApiService {
       assistantMessage: assistant,
       transcript: transcript,
       reply: replyContent
+    };
+  }
+
+  async realtimeSession() {
+    const resolved = this.resolveVoiceRole();
+    if (!resolved) {
+      throw new ServiceUnavailableException('Voice chat is not configured. Please enable voice-talk or tutor-chat in settings.');
+    }
+
+    const { role, provider } = resolved;
+
+    const isRealtimeCapable = role.model?.toLowerCase().includes('realtime');
+    if (!isRealtimeCapable) {
+      throw new BadGatewayException('The configured voice-talk model is not realtime-capable. Please configure a realtime model like gpt-realtime-mini or gpt-4o-realtime-preview.');
+    }
+
+    const session = this.store.db.voiceSessions?.[this.store.db.voiceSessions.length - 1];
+    const langCode = session?.languageCode ?? this.profile().currentLanguage ?? 'es';
+    const langName = this.store.db.languages.find((l: any) => l.code === langCode)?.name ?? langCode;
+    const instructions = `You are a conversational ${langName} language practice partner. Engage in brief, natural dialogue with the learner. Keep responses short (1-3 sentences) for spoken conversation. Gently correct major mistakes inline and encourage the learner. Speak naturally as if in a real conversation. The learner is practicing ${langName}.`;
+
+    const realtime = await this.llm.createRealtimeSession(provider, role, {
+      instructions,
+      voice: 'alloy',
+      inputAudioTranscriptionModel: 'whisper-1',
+      turnDetection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 700 },
+    });
+
+    return {
+      transport: 'webrtc',
+      connectUrl: realtime.connectUrl,
+      ephemeralKey: realtime.ephemeralKey,
+      model: role.model,
+      temperature: role.temperature ?? 0.7,
+      languageCode: langCode,
+      languageName: langName,
+      instructions,
+      voice: 'alloy',
     };
   }
 

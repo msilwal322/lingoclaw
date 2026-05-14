@@ -100,7 +100,7 @@ export default function ProvidersPage() {
               <li>• For <strong>stt</strong> (speech-to-text): assign a provider with speech recognition (e.g., Whisper.cpp)</li>
               <li>• For <strong>voice-talk</strong>: use a low-latency LLM model. OpenAI-compatible realtime models like <code className="text-[#fdfcfc]">gpt-realtime-mini</code> or <code className="text-[#fdfcfc]">gpt-4o-realtime-preview</code> are ideal when available.</li>
               <li>• For <strong>tts</strong> (text-to-speech): assign a TTS provider (e.g., Piper TTS)</li>
-              <li>• Note: Live audio transport (WebSocket/realtime streaming) is not yet implemented. Voice page shows configuration status.</li>
+              <li>• Realtime voice uses browser WebRTC plus a backend-issued ephemeral session for OpenAI-compatible realtime endpoints.</li>
             </ul>
           </div>
 

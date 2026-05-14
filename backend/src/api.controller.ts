@@ -25,5 +25,6 @@ export class ApiController {
   @Post('chat/sessions/:id/messages') chat(@Param('id') id:string,@Body() body:any){ return this.api.chat(id, String(body?.content ?? '')); }
   @Post('voice/sessions') createVoiceSession(){ return this.api.createVoiceSession(); }
   @Post('voice/sessions/:id/turns') voiceTurn(@Param('id') id:string,@Body() body:any){ return this.api.voiceTurn(id, String(body?.transcript ?? '')); }
+  @Post('voice/realtime/session') realtimeSession(){ return this.api.realtimeSession(); }
   @Get('practice') practice(@Query('lang') lang?: string){ return this.api.practice(lang); }
 }
