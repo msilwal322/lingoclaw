@@ -11,6 +11,7 @@ export type ProviderConfig = {
   kind: ProviderKind;
   baseUrl: string;
   apiKeyRef: string;
+  apiVersion?: string;
   status: ProviderStatus;
   notes: string;
   models: string[];

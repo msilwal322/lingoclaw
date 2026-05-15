@@ -102,6 +102,7 @@ describe('ApiController', () => {
     jest.spyOn(llm, 'createRealtimeSession').mockResolvedValue({
       connectUrl: 'https://api.openai.com/v1/realtime?model=gpt-realtime-mini',
       ephemeralKey: 'ephemeral_test_key',
+      authMode: 'bearer',
       session: { id: 'sess_123' },
     });
 

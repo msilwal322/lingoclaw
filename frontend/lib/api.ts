@@ -27,6 +27,7 @@ export type RealtimeConfig = {
   transport: "webrtc";
   connectUrl: string;
   ephemeralKey: string;
+  realtimeApiMode?: "azure-ga" | "openai";
   model: string;
   temperature: number;
   languageCode: string;

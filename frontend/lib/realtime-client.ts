@@ -26,13 +26,25 @@ function getString(value: unknown, fallback = ''): string {
 export interface RealtimeConfig {
   connectUrl: string;
   ephemeralKey: string;
+  realtimeApiMode?: 'azure-ga' | 'openai';
   model: string;
   temperature?: number;
   instructions?: string;
   voice?: string;
   inputAudioTranscription?: { model?: string };
-  turnDetection?: { type: 'server_vad'; threshold?: number; silence_duration_ms?: number } | null;
+  turnDetection?: {
+    type: 'server_vad';
+    threshold?: number;
+    silence_duration_ms?: number;
+    create_response?: boolean;
+    interrupt_response?: boolean;
+  } | null;
 }
+
+type RealtimeEventType = RealtimeEvent['type'] | '*';
+type RealtimeEventFor<T extends RealtimeEventType> = T extends RealtimeEvent['type']
+  ? Extract<RealtimeEvent, { type: T }>
+  : RealtimeEvent;
 
 export class RealtimeClient {
   private config: RealtimeConfig;
@@ -110,20 +122,47 @@ export class RealtimeClient {
     dataChannel.onerror = () => {
       this.emit({ type: 'error', error: 'Realtime data channel error' });
     };
+    dataChannel.onclose = () => {
+      console.warn('Realtime data channel closed');
+      this.emit({ type: 'disconnected', reason: 'data-channel-closed' });
+    };
     dataChannel.onopen = () => {
-      this.send({
-        type: 'session.update',
-        session: {
-          modalities: ['text', 'audio'],
-          instructions: this.config.instructions || '',
-          voice: this.config.voice || 'alloy',
-          input_audio_transcription: this.config.inputAudioTranscription || { model: 'whisper-1' },
-          turn_detection: this.config.turnDetection === undefined
-            ? { type: 'server_vad', threshold: 0.5, silence_duration_ms: 700 }
-            : this.config.turnDetection,
-          temperature: this.config.temperature ?? 0.7,
-        },
-      });
+      const resolvedTurnDetection = this.config.turnDetection === undefined
+        ? {
+            type: 'server_vad',
+            threshold: 0.5,
+            silence_duration_ms: 700,
+            create_response: true,
+            interrupt_response: true,
+          }
+        : this.config.turnDetection;
+
+      // Azure GA data-channel session.update uses nested audio.{input,output} shape.
+      // OpenAI-compatible endpoints use the flat voice/input_audio_transcription/turn_detection shape.
+      const session = this.config.realtimeApiMode === 'azure-ga'
+        ? {
+            type: 'realtime',
+            instructions: this.config.instructions || '',
+            output_modalities: ['audio'],
+            audio: {
+              input: {
+                ...(this.config.inputAudioTranscription?.model && {
+                  transcription: { model: this.config.inputAudioTranscription.model },
+                }),
+                ...(resolvedTurnDetection && { turn_detection: resolvedTurnDetection }),
+              },
+              output: { voice: this.config.voice || 'alloy' },
+            },
+          }
+        : {
+            instructions: this.config.instructions || '',
+            voice: this.config.voice || 'alloy',
+            input_audio_transcription: this.config.inputAudioTranscription || { model: 'whisper-1' },
+            turn_detection: resolvedTurnDetection,
+            temperature: this.config.temperature ?? 0.7,
+          };
+
+      this.send({ type: 'session.update', session });
     };
 
     const offer = await peerConnection.createOffer({ offerToReceiveAudio: true });
@@ -202,15 +241,23 @@ export class RealtimeClient {
     this.send({ type: 'response.create' });
   }
 
-  on(eventType: string, handler: (event: RealtimeEvent) => void): void {
+  sendEvent(data: unknown): void {
+    this.send(data);
+  }
+
+  get dataChannelState(): RTCDataChannelState | 'no-channel' {
+    return this.dataChannel?.readyState ?? 'no-channel';
+  }
+
+  on<T extends RealtimeEventType>(eventType: T, handler: (event: RealtimeEventFor<T>) => void): void {
     if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, new Set());
     }
-    this.listeners.get(eventType)!.add(handler);
+    this.listeners.get(eventType)!.add(handler as (event: RealtimeEvent) => void);
   }
 
-  off(eventType: string, handler: (event: RealtimeEvent) => void): void {
-    this.listeners.get(eventType)?.delete(handler);
+  off<T extends RealtimeEventType>(eventType: T, handler: (event: RealtimeEventFor<T>) => void): void {
+    this.listeners.get(eventType)?.delete(handler as (event: RealtimeEvent) => void);
   }
 
   get connected(): boolean {
@@ -219,6 +266,10 @@ export class RealtimeClient {
 
   private send(data: unknown): void {
     if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
+      console.warn('Realtime send dropped — data channel not open', {
+        readyState: this.dataChannel?.readyState ?? 'no-channel',
+        event: data,
+      });
       return;
     }
     this.dataChannel.send(JSON.stringify(data));
@@ -241,14 +292,18 @@ export class RealtimeClient {
       case 'conversation.item.input_audio_transcription.completed':
         this.emit({
           type: 'conversation.item.input_audio_transcription.completed',
-          itemId: data.item_id,
-          transcript: data.transcript ?? '',
+          itemId: getString(data.item_id),
+          transcript: getString(data.transcript),
         });
         break;
       case 'response.audio_transcript.delta':
+      // Azure GA uses response.output_audio_transcript.delta for the same thing
+      case 'response.output_audio_transcript.delta':
         this.emit({ type: 'response.audio_transcript.delta', delta: getString(data.delta), itemId: getString(data.item_id) || undefined });
         break;
       case 'response.audio_transcript.done':
+      // Azure GA uses response.output_audio_transcript.done for the same thing
+      case 'response.output_audio_transcript.done':
         this.emit({ type: 'response.audio_transcript.done', transcript: getString(data.transcript), itemId: getString(data.item_id) || undefined });
         break;
       case 'response.text.delta':
@@ -267,6 +322,23 @@ export class RealtimeClient {
         break;
       case 'input_audio_buffer.speech_stopped':
         this.emit({ type: 'input_audio_buffer.speech_stopped' });
+        break;
+      case 'session.updated':
+        console.log('Realtime session.updated', data.session ?? data);
+        break;
+      case 'output_audio_buffer.started':
+      case 'output_audio_buffer.stopped':
+        console.log('Realtime', eventType, data);
+        break;
+      // Known Azure GA lifecycle events that require no client action
+      case 'input_audio_buffer.committed':
+      case 'conversation.item.added':
+      case 'conversation.item.done':
+      case 'response.created':
+      case 'response.output_item.added':
+      case 'response.content_part.added':
+      case 'response.output_audio.done':
+      case 'response.output_item.done':
         break;
       case 'error':
         this.emit({

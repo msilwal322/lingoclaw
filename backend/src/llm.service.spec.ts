@@ -41,6 +41,117 @@ describe('LlmService', () => {
     });
   });
 
+  // ── Azure GA realtime endpoints ────────────────────────────────────────────
+
+  describe('createRealtimeSession - Azure GA endpoints', () => {
+    const azureProvider = {
+      id: 'azure-openai',
+      baseUrl: 'https://my-resource.services.ai.azure.com',
+      apiKeyRef: 'AZURE_KEY',
+      apiVersion: '2025-04-01-preview',
+    };
+    const role = { model: 'gpt-4o-realtime-preview', temperature: 0.5 };
+
+    beforeEach(() => {
+      process.env.AZURE_KEY = 'test-azure-key';
+    });
+
+    afterEach(() => {
+      delete process.env.AZURE_KEY;
+    });
+
+    it('posts to GA client_secrets URL (no api-version or deployment query params)', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ value: 'eph_token_abc', id: 'sess_123' }),
+      });
+
+      await svc.createRealtimeSession(azureProvider, role, { instructions: 'test' });
+
+      const calledUrl: string = fetchMock.mock.calls[0][0];
+      expect(calledUrl).toBe('https://my-resource.services.ai.azure.com/openai/v1/realtime/client_secrets');
+      expect(calledUrl).not.toContain('api-version');
+      expect(calledUrl).not.toContain('realtimeapi');
+    });
+
+    it('returns GA calls URL with session_id as first query param', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ value: 'eph_token_abc', id: 'sess_123' }),
+      });
+
+      const result = await svc.createRealtimeSession(azureProvider, role, { instructions: 'test' });
+
+      expect(result.connectUrl).toBe(
+        'https://my-resource.services.ai.azure.com/openai/v1/realtime/calls?session_id=sess_123',
+      );
+      expect(result.connectUrl).not.toContain('realtimewrtc');
+      expect(result.connectUrl).not.toContain('api-version');
+    });
+
+    it('extracts ephemeral key from top-level data.value (GA response shape)', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ value: 'eph_ga_token', id: 'sess_456' }),
+      });
+
+      const result = await svc.createRealtimeSession(azureProvider, role, { instructions: 'test' });
+
+      expect(result.ephemeralKey).toBe('eph_ga_token');
+    });
+
+    it('falls back to client_secret.value for OpenAI response shape', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ client_secret: { value: 'openai_eph_token' }, id: 'sess_789' }),
+      });
+
+      const result = await svc.createRealtimeSession(azureProvider, role, { instructions: 'test' });
+
+      expect(result.ephemeralKey).toBe('openai_eph_token');
+    });
+
+    it('sends session-wrapped body with type=realtime for Azure GA', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ value: 'eph_token', id: 'sess_1' }),
+      });
+
+      await svc.createRealtimeSession(azureProvider, role, { instructions: 'test' });
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.session).toBeDefined();
+      expect(body.session.type).toBe('realtime');
+      expect(body.session.model).toBe('gpt-4o-realtime-preview');
+      expect(body.session_type).toBeUndefined();
+    });
+
+    it('sends api-key header not Authorization for Azure', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ value: 'eph_token', id: 'sess_1' }),
+      });
+
+      await svc.createRealtimeSession(azureProvider, role, { instructions: 'test' });
+
+      const headers = fetchMock.mock.calls[0][1].headers;
+      expect(headers['api-key']).toBe('test-azure-key');
+      expect(headers['Authorization']).toBeUndefined();
+    });
+
+    it('also detects .openai.azure.com hostname as Azure', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ value: 'eph_token', id: 'sess_2' }),
+      });
+
+      const azureLegacyProvider = { ...azureProvider, baseUrl: 'https://my-res.openai.azure.com' };
+      const result = await svc.createRealtimeSession(azureLegacyProvider, role, { instructions: 'test' });
+
+      expect(result.connectUrl).toContain('/openai/v1/realtime/calls');
+    });
+  });
+
   // ── URL normalisation ──────────────────────────────────────────────────────
 
   describe('URL normalisation', () => {

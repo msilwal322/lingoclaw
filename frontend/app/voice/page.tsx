@@ -304,6 +304,19 @@ export default function VoicePage() {
     setCurrentRealtimeTranscript('');
     
     try {
+      // Detect insecure origins (must come before getUserMedia check)
+      if (typeof window !== 'undefined') {
+        const isSecure = window.location.protocol === 'https:';
+        const isLocalhost = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+        
+        if (!isSecure && !isLocalhost) {
+          throw new Error(
+            `Realtime voice requires HTTPS or localhost. Mobile browsers block microphone and WebRTC APIs on insecure origins like ${window.location.protocol}//${window.location.host}. ` +
+            'Please access this app via https:// or http://localhost to use realtime voice features.'
+          );
+        }
+      }
+
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         throw new Error('Realtime voice requires browser microphone support. Try a modern browser with microphone access enabled.');
       }
@@ -322,12 +335,19 @@ export default function VoicePage() {
       const client = new RealtimeClient({
         connectUrl: config.connectUrl,
         ephemeralKey: config.ephemeralKey,
+        realtimeApiMode: config.realtimeApiMode,
         model: config.model,
         temperature: config.temperature,
         instructions: config.instructions,
         voice: config.voice,
         inputAudioTranscription: { model: 'whisper-1' },
-        turnDetection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 700 },
+        turnDetection: {
+          type: 'server_vad',
+          threshold: 0.5,
+          silence_duration_ms: 700,
+          create_response: true,
+          interrupt_response: true,
+        },
       });
 
       // Set up event listeners
@@ -392,21 +412,37 @@ export default function VoicePage() {
         syncRealtimeResponse(String(event.text));
       });
 
+      // Audio transcript events (Azure GA: response.output_audio_transcript.*, OpenAI: response.audio_transcript.*)
+      // Both are mapped to these normalized events in realtime-client.ts
+      client.on('response.audio_transcript.delta', (event: Extract<RealtimeEvent, { type: 'response.audio_transcript.delta' }>) => {
+        syncRealtimeResponse(prev => prev + (event.delta ?? ''));
+      });
+
+      client.on('response.audio_transcript.done', (event: Extract<RealtimeEvent, { type: 'response.audio_transcript.done' }>) => {
+        if (!event.transcript || currentRealtimeResponseRef.current.trim()) return;
+        syncRealtimeResponse(String(event.transcript));
+      });
+
       client.on('response.done', (event: Extract<RealtimeEvent, { type: 'response.done' }>) => {
-        console.log('Response done:', event.response);
+        console.log('Response done:', event.response, 'dataChannel:', client.dataChannelState);
         finalizeRealtimeResponse(event.response);
       });
 
       // Connect to the WebSocket with timeout
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       const connectPromise = client.connect();
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timeoutHandle = setTimeout(() => {
           client.disconnect();
           reject(new Error('Connection timeout after 15 seconds. Check your network and try again.'));
         }, 15000);
       });
-      
-      await Promise.race([connectPromise, timeoutPromise]);
+
+      try {
+        await Promise.race([connectPromise, timeoutPromise]);
+      } finally {
+        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      }
       realtimeClientRef.current = client;
       
     } catch (err) {
@@ -840,11 +876,16 @@ export default function VoicePage() {
                         <div className="text-center py-12">
                           {realtimeError ? (
                             <>
-                              <div className="text-[#ff453a] mb-2">Connection error</div>
-                              <div className="text-xs text-[#9a9898]">{realtimeError}</div>
+                              <div className="border border-[#ff453a]/30 rounded bg-[#252121] p-5 mb-4">
+                                <div className="flex items-center justify-center gap-2 text-[#ff453a] font-bold mb-3">
+                                  <AlertCircle size={20} />
+                                  Realtime Connection Error
+                                </div>
+                                <div className="text-sm text-[#fdfcfc] leading-relaxed mb-2">{realtimeError}</div>
+                              </div>
                               <button 
                                 onClick={connectRealtime}
-                                className="mt-4 text-xs border border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158] rounded px-3 py-1 hover:bg-[#30d158]/20"
+                                className="text-xs border border-[#30d158]/30 bg-[#30d158]/10 text-[#30d158] rounded px-4 py-2 hover:bg-[#30d158]/20 font-bold"
                               >
                                 retry connection
                               </button>
@@ -862,8 +903,12 @@ export default function VoicePage() {
                       ) : (
                         <>
                           {realtimeError && (
-                            <div className="mb-3 border border-[#ff9f0a]/30 rounded bg-[#252121] p-3 text-xs text-[#ff9f0a]">
-                              {realtimeError}
+                            <div className="mb-3 border border-[#ff453a]/30 rounded bg-[#252121] p-4">
+                              <div className="flex items-center gap-2 text-[#ff453a] font-bold text-sm mb-2">
+                                <AlertCircle size={16} />
+                                Connection Issue
+                              </div>
+                              <div className="text-xs text-[#fdfcfc] leading-relaxed">{realtimeError}</div>
                             </div>
                           )}
                           {/* Conversation Log */}

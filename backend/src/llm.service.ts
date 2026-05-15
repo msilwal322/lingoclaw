@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class LlmService {
@@ -11,9 +11,8 @@ export class LlmService {
     return apiKeyRef;
   }
 
-  private buildRealtimeEndpoints(baseUrl: string, model: string) {
+  private buildRealtimeEndpoints(baseUrl: string, model: string, _apiVersion?: string) {
     const trimmed = (baseUrl || '').replace(/\/+$/, '');
-    const apiVersion = '2025-04-01-preview';
 
     if (!trimmed) {
       throw new Error('Provider base URL is empty');
@@ -27,11 +26,10 @@ export class LlmService {
 
     if (trimmed.includes('.openai.azure.com') || trimmed.includes('.services.ai.azure.com') || trimmed.includes('/openai/')) {
       const url = new URL(trimmed);
-      const deployment = encodeURIComponent(model);
       return {
         authMode: 'api-key' as const,
-        sessionUrl: `${url.origin}/openai/realtimeapi/sessions?api-version=${apiVersion}&deployment=${deployment}`,
-        connectUrl: `${url.origin}/openai/realtimeapi?api-version=${apiVersion}&deployment=${deployment}`,
+        sessionUrl: `${url.origin}/openai/v1/realtime/client_secrets`,
+        connectUrl: `${url.origin}/openai/v1/realtime/calls`,
       };
     }
 
@@ -67,11 +65,17 @@ export class LlmService {
       instructions: string;
       voice?: string;
       inputAudioTranscriptionModel?: string;
-      turnDetection?: { type: 'server_vad'; threshold?: number; silence_duration_ms?: number } | null;
+      turnDetection?: {
+        type: 'server_vad';
+        threshold?: number;
+        silence_duration_ms?: number;
+        create_response?: boolean;
+        interrupt_response?: boolean;
+      } | null;
     },
   ) {
     const apiKey = this.resolveApiKey(provider.apiKeyRef);
-    const { sessionUrl, connectUrl, authMode } = this.buildRealtimeEndpoints(provider.baseUrl as string, role.model as string);
+    const { sessionUrl, connectUrl, authMode } = this.buildRealtimeEndpoints(provider.baseUrl as string, role.model as string, provider.apiVersion as string | undefined);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
     if (apiKey) {
@@ -79,39 +83,78 @@ export class LlmService {
       else headers['Authorization'] = `Bearer ${apiKey}`;
     }
 
+    const resolvedTurnDetection = options.turnDetection === undefined
+      ? {
+          type: 'server_vad',
+          threshold: 0.5,
+          silence_duration_ms: 700,
+          create_response: true,
+          interrupt_response: true,
+        }
+      : options.turnDetection;
+
+    // Azure GA client_secrets requires a nested session wrapper with session.type='realtime'.
+    // OpenAI-compatible endpoints use the flat format.
+    const requestBody = authMode === 'api-key'
+      ? {
+          session: {
+            type: 'realtime',
+            model: role.model,
+            instructions: options.instructions,
+            audio: {
+              input: {
+                ...(options.inputAudioTranscriptionModel && {
+                  transcription: { model: options.inputAudioTranscriptionModel },
+                }),
+                turn_detection: resolvedTurnDetection,
+              },
+              output: { voice: options.voice ?? 'alloy' },
+            },
+          },
+        }
+      : {
+          model: role.model,
+          voice: options.voice ?? 'alloy',
+          instructions: options.instructions,
+          input_audio_transcription: options.inputAudioTranscriptionModel
+            ? { model: options.inputAudioTranscriptionModel }
+            : undefined,
+          turn_detection: resolvedTurnDetection,
+        };
+
     const resp = await fetch(sessionUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model: role.model,
-        voice: options.voice ?? 'alloy',
-        instructions: options.instructions,
-        input_audio_transcription: options.inputAudioTranscriptionModel
-          ? { model: options.inputAudioTranscriptionModel }
-          : undefined,
-        turn_detection: options.turnDetection === undefined
-          ? { type: 'server_vad', threshold: 0.5, silence_duration_ms: 700 }
-          : options.turnDetection,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!resp.ok) {
-      throw new Error(`Realtime session API ${resp.status}: ${await resp.text()}`);
+      const body = await resp.text();
+      throw new BadGatewayException(`Realtime session API ${resp.status}: ${body}`);
     }
 
     const data: any = await resp.json();
     const ephemeralKey = data?.client_secret?.value
       ?? data?.client_secret
+      ?? data?.value
       ?? data?.ephemeral_api_key
       ?? data?.token;
 
     if (!ephemeralKey) {
-      throw new Error('Realtime session response did not include an ephemeral client secret');
+      throw new BadGatewayException('Realtime session response did not include an ephemeral client secret');
     }
 
+    // Azure (both openai.azure.com and services.ai.azure.com) routes the SDP exchange
+    // via session_id — without it the endpoint returns 404 "Resource not found".
+    const sessionId = typeof data?.id === 'string' ? data.id : undefined;
+    const finalConnectUrl = (authMode === 'api-key' && sessionId)
+      ? `${connectUrl}${connectUrl.includes('?') ? '&' : '?'}session_id=${encodeURIComponent(sessionId)}`
+      : connectUrl;
+
     return {
-      connectUrl,
+      connectUrl: finalConnectUrl,
       ephemeralKey,
+      authMode,
       session: data,
     };
   }

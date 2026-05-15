@@ -120,6 +120,7 @@ export default function ProvidersPage() {
                       <label className="text-[11px] text-[#9a9898]">base url<input className="mt-1 w-full bg-[#201d1d] border border-white/10 rounded px-3 py-2 text-[#fdfcfc]" value={provider.baseUrl} onChange={(e) => updateProvider(provider.id, { baseUrl: e.target.value })} /></label>
                       <label className="text-[11px] text-[#9a9898]">api key env/ref<input className="mt-1 w-full bg-[#201d1d] border border-white/10 rounded px-3 py-2 text-[#fdfcfc]" value={provider.apiKeyRef} onChange={(e) => updateProvider(provider.id, { apiKeyRef: e.target.value })} /></label>
                     </div>
+                    <label className="text-[11px] text-[#9a9898]">api version <span className="text-[#9a9898]/60">(optional — Azure realtime, e.g. 2025-04-01-preview)</span><input className="mt-1 w-full bg-[#201d1d] border border-white/10 rounded px-3 py-2 text-[#fdfcfc]" value={provider.apiVersion ?? ""} placeholder="leave blank for default" onChange={(e) => updateProvider(provider.id, { apiVersion: e.target.value || undefined })} /></label>
                     <p className="text-xs text-[#9a9898] leading-relaxed">{provider.notes}</p>
                     <div className="flex flex-wrap gap-2">{provider.models.map((m) => <span key={m} className="text-[11px] border border-white/10 rounded px-2 py-1 text-[#9a9898]">{m}</span>)}</div>
                   </div>

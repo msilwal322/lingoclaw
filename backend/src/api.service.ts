@@ -318,13 +318,20 @@ export class ApiService {
       instructions,
       voice: 'alloy',
       inputAudioTranscriptionModel: 'whisper-1',
-      turnDetection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 700 },
+      turnDetection: {
+        type: 'server_vad',
+        threshold: 0.5,
+        silence_duration_ms: 700,
+        create_response: true,
+        interrupt_response: true,
+      },
     });
 
     return {
       transport: 'webrtc',
       connectUrl: realtime.connectUrl,
       ephemeralKey: realtime.ephemeralKey,
+      realtimeApiMode: realtime.authMode === 'api-key' ? 'azure-ga' : 'openai',
       model: role.model,
       temperature: role.temperature ?? 0.7,
       languageCode: langCode,
