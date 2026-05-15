@@ -249,8 +249,8 @@ export default function VoicePage() {
         const brain = roles.find((r: ModelRole) => r.id === "voice-talk");
         const tts = roles.find((r: ModelRole) => r.id === "tts");
         
-        const getProvider = (id?: string) => providers.find((p: ProviderConfig) => p.id === id);
-        const getProviderName = (id?: string) => getProvider(id)?.name ?? "not configured";
+        const getProvider = (id?: string | null) => id ? providers.find((p: ProviderConfig) => p.id === id) : undefined;
+        const getProviderName = (id?: string | null) => getProvider(id)?.name ?? "not configured";
         const supportsRealtimeTransport = (provider?: ProviderConfig) => {
           if (!provider) return false;
           try {
@@ -262,29 +262,33 @@ export default function VoicePage() {
           }
         };
         
+        const brainProvider = brain ? getProvider(brain.providerId ?? undefined) : undefined;
+        const brainModel = brain?.modelId
+          ? brainProvider?.models.find((m) => m.id === brain.modelId)
+          : undefined;
+
         setSttStatus({
           exists: !!stt,
           enabled: stt?.enabled ?? false,
-          provider: stt ? getProviderName(stt.providerId) : undefined,
-          model: stt?.model
+          provider: stt ? getProviderName(stt.providerId ?? undefined) : undefined,
+          model: stt?.model ?? undefined,
         });
 
-        const brainProvider = brain ? getProvider(brain.providerId) : undefined;
         setVoiceTalkStatus({
           exists: !!brain,
           enabled: brain?.enabled ?? false,
-          provider: brain ? getProviderName(brain.providerId) : undefined,
+          provider: brain ? getProviderName(brain.providerId ?? undefined) : undefined,
           providerBaseUrl: brainProvider?.baseUrl,
-          model: brain?.model,
-          isRealtimeCapable: brain?.model?.toLowerCase().includes('realtime') ?? false,
+          model: brain?.model ?? undefined,
+          isRealtimeCapable: brainModel?.capabilities.includes("realtime") ?? false,
           supportsRealtimeTransport: supportsRealtimeTransport(brainProvider),
         });
 
         setTtsStatus({
           exists: !!tts,
           enabled: tts?.enabled ?? false,
-          provider: tts ? getProviderName(tts.providerId) : undefined,
-          model: tts?.model
+          provider: tts ? getProviderName(tts.providerId ?? undefined) : undefined,
+          model: tts?.model ?? undefined,
         });
 
         setLoading(false);

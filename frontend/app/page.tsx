@@ -90,7 +90,7 @@ export default function WorkbenchPage() {
                   ) : (
                     providers.slice(0, 5).map((provider) => (
                       <div key={provider.id} className="flex items-center justify-between gap-3 border border-white/10 rounded px-3 py-2 bg-[#201d1d]">
-                        <div><div className="text-sm">{provider.name}</div><div className="text-[11px] text-[#9a9898]">{provider.kind} · {provider.models[0]}</div></div>
+                        <div><div className="text-sm">{provider.name}</div><div className="text-[11px] text-[#9a9898]">{provider.compatibilityFamily} · {provider.models[0]?.name ?? "no models"}</div></div>
                         <div className={`text-xs ${statusColor(provider.status)}`}>{provider.status}</div>
                       </div>
                     ))

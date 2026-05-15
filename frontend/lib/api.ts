@@ -1,6 +1,6 @@
 import type { Language, Lesson, Question, Story, Achievement, LeaderboardUser } from "./mock-data";
 import type { UserProfile } from "./storage";
-import type { ModelRole, ProviderConfig } from "./providers";
+import type { ModelRole, ProviderConfig, ProviderModel } from "./providers";
 
 export function getApiUrl() {
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
@@ -19,7 +19,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type LessonWithQuestions = Lesson & { questions: Question[] };
 export type GeneratedStoryRequest = { languageCode?: string; level?: string };
-export type PracticeContent = { 
+export type PracticeContent = {
   flashcards: Array<{ front: string; back: string; example: string; phonetic: string }>;
   fillBlanks: Array<{ sentence: string; translation: string; answer: string; hint: string }>;
 };
@@ -50,14 +50,34 @@ export const api = {
   completeStory: (id: string) => request<{ profile: UserProfile; storyId: string }>(`/stories/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({}) }),
   achievements: () => request<Achievement[]>("/achievements"),
   leaderboard: () => request<LeaderboardUser[]>("/leaderboard"),
+
+  // Providers
   providers: () => request<ProviderConfig[]>("/providers"),
-  saveProviders: (providers: ProviderConfig[]) => request<ProviderConfig[]>("/providers", { method: "PUT", body: JSON.stringify(providers) }),
+  createProvider: (body: Partial<ProviderConfig> & { name: string }) => request<ProviderConfig>("/providers", { method: "POST", body: JSON.stringify(body) }),
+  updateProvider: (id: string, patch: Partial<ProviderConfig>) => request<ProviderConfig>(`/providers/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(patch) }),
+  deleteProvider: (id: string) => request<{ deleted: string }>(`/providers/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Models
+  addModel: (providerId: string, body: { name: string; capabilities: string[] }) =>
+    request<ProviderModel>(`/providers/${encodeURIComponent(providerId)}/models`, { method: "POST", body: JSON.stringify(body) }),
+  updateModel: (providerId: string, modelId: string, body: { capabilities: string[] }) =>
+    request<ProviderModel>(`/providers/${encodeURIComponent(providerId)}/models/${encodeURIComponent(modelId)}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteModel: (providerId: string, modelId: string) =>
+    request<{ deleted: string; unassignedRoles: string[] }>(`/providers/${encodeURIComponent(providerId)}/models/${encodeURIComponent(modelId)}`, { method: "DELETE" }),
+
+  // Roles
   roles: () => request<ModelRole[]>("/providers/roles"),
   saveRoles: (roles: ModelRole[]) => request<ModelRole[]>("/providers/roles", { method: "PUT", body: JSON.stringify(roles) }),
+
+  // Chat
   createChatSession: () => request<{ id: string; createdAt: string; languageCode: string }>("/chat/sessions", { method: "POST", body: JSON.stringify({}) }),
   sendChatMessage: (sessionId: string, content: string) => request<{ message: { id: string; role: "assistant"; content: string; createdAt: string } }>(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { method: "POST", body: JSON.stringify({ content }) }),
+
+  // Voice
   createVoiceSession: () => request<{ id: string; createdAt: string; languageCode: string }>("/voice/sessions", { method: "POST", body: JSON.stringify({}) }),
   sendVoiceTurn: (sessionId: string, transcript: string) => request<{ userMessage: { id: string; role: "user"; content: string; createdAt: string }; assistantMessage: { id: string; role: "assistant"; content: string; createdAt: string }; transcript: string; reply: string }>(`/voice/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: JSON.stringify({ transcript }) }),
   createRealtimeSession: () => request<RealtimeConfig>("/voice/realtime/session", { method: "POST", body: JSON.stringify({}) }),
+
+  // Practice
   practice: (lang?: string) => request<PracticeContent>(lang ? `/practice?lang=${encodeURIComponent(lang)}` : "/practice"),
 };
