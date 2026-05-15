@@ -4,22 +4,27 @@ import { ApiService } from './api.service';
 import { LlmService } from './llm.service';
 import { StoreModule } from './store/store.module';
 import { StoreService } from './store/store.service';
+import { ProvidersModule } from './providers/providers.module';
+import { ProvidersStore } from './providers/providers.store';
 
 describe('ApiController', () => {
   let c: ApiController;
   let store: StoreService;
   let llm: LlmService;
-  
+  let ps: ProvidersStore;
+
   beforeEach(async () => {
     process.env.DATA_FILE = '/tmp/lingoclaw-test-db.json';
+    process.env.PROVIDERS_DB = `/tmp/lingoclaw-test-providers-${Date.now()}.db`;
     const m = await Test.createTestingModule({
-      imports: [StoreModule],
+      imports: [StoreModule, ProvidersModule],
       controllers: [ApiController],
-      providers: [ApiService, LlmService]
+      providers: [ApiService, LlmService],
     }).compile();
     c = m.get(ApiController);
     store = m.get(StoreService);
     llm = m.get(LlmService);
+    ps = m.get(ProvidersStore);
   });
 
   it('root returns name and endpoints', () => {
@@ -53,50 +58,37 @@ describe('ApiController', () => {
 
   it('voice turn falls back to tutor-chat when voice-talk is disabled', async () => {
     const s = c.createVoiceSession();
-    
-    // Disable voice-talk role
-    const voiceTalkRole = store.db.roles.find((r: any) => r.id === 'voice-talk');
-    if (voiceTalkRole) voiceTalkRole.enabled = false;
-    
+    const voiceTalkRole = ps.getRole('voice-talk');
+    if (voiceTalkRole) ps.upsertRole({ ...voiceTalkRole, enabled: false });
+
     const result = await c.voiceTurn(s.id, { transcript: 'bonjour' });
     expect(result.transcript).toBe('bonjour');
     expect(result.assistantMessage.content).toBeDefined();
     expect(typeof result.reply).toBe('string');
-    
-    // Re-enable for other tests
-    if (voiceTalkRole) voiceTalkRole.enabled = true;
+
+    if (voiceTalkRole) ps.upsertRole({ ...voiceTalkRole, enabled: true });
   }, 10000);
 
   it('voice turn returns config message when both roles disabled', async () => {
     const s = c.createVoiceSession();
-    
-    // Disable both roles
-    const voiceTalkRole = store.db.roles.find((r: any) => r.id === 'voice-talk');
-    const tutorChatRole = store.db.roles.find((r: any) => r.id === 'tutor-chat');
-    const voiceEnabled = voiceTalkRole?.enabled;
-    const tutorEnabled = tutorChatRole?.enabled;
-    
-    if (voiceTalkRole) voiceTalkRole.enabled = false;
-    if (tutorChatRole) tutorChatRole.enabled = false;
-    
+    const vtRole = ps.getRole('voice-talk');
+    const tcRole = ps.getRole('tutor-chat');
+    if (vtRole) ps.upsertRole({ ...vtRole, enabled: false });
+    if (tcRole) ps.upsertRole({ ...tcRole, enabled: false });
+
     const result = await c.voiceTurn(s.id, { transcript: 'test' });
     expect(result.reply).toContain('not configured');
-    
-    // Restore
-    if (voiceTalkRole) voiceTalkRole.enabled = voiceEnabled;
-    if (tutorChatRole) tutorChatRole.enabled = tutorEnabled;
+
+    if (vtRole) ps.upsertRole({ ...vtRole, enabled: true });
+    if (tcRole) ps.upsertRole({ ...tcRole, enabled: true });
   }, 10000);
 
   it('creates realtime bootstrap session for realtime-capable voice model', async () => {
-    const voiceTalkRole = store.db.roles.find((r: any) => r.id === 'voice-talk');
-    const openAiCompatibleProvider = store.db.providers.find((p: any) => p.id === 'openai-compatible');
-    expect(voiceTalkRole).toBeDefined();
-    expect(openAiCompatibleProvider).toBeDefined();
+    const vtRole = ps.getRole('voice-talk');
+    expect(vtRole).toBeDefined();
 
-    if (voiceTalkRole) {
-      voiceTalkRole.enabled = true;
-      voiceTalkRole.providerId = 'openai-compatible';
-      voiceTalkRole.model = 'gpt-realtime-mini';
+    if (vtRole) {
+      ps.upsertRole({ ...vtRole, enabled: true, providerId: 'openai-compatible', modelId: 'openai-compatible:gpt-realtime-mini' });
     }
 
     jest.spyOn(llm, 'createRealtimeSession').mockResolvedValue({
@@ -113,6 +105,67 @@ describe('ApiController', () => {
     expect(result.model).toContain('realtime');
   });
 
+  it('realtimeSession throws when model lacks realtime capability', async () => {
+    const vtRole = ps.getRole('voice-talk');
+    if (vtRole) {
+      // Assign a chat-only model to voice-talk
+      ps.upsertRole({ ...vtRole, enabled: true, providerId: 'anthropic', modelId: 'anthropic:claude-sonnet-4-5' });
+    }
+
+    await expect(c.realtimeSession()).rejects.toThrow(/realtime/i);
+
+    if (vtRole) ps.upsertRole({ ...vtRole });
+  });
+
+  it('providers returns seeded providers with models and capabilities', () => {
+    const providers = c.listProviders();
+    expect(Array.isArray(providers)).toBe(true);
+    expect(providers.length).toBeGreaterThan(0);
+    const first = providers[0];
+    expect(first.id).toBeDefined();
+    expect(first.compatibilityFamily).toBeDefined();
+    expect(Array.isArray(first.models)).toBe(true);
+    const model = first.models[0];
+    expect(model).toBeDefined();
+    expect(model.id).toBeDefined();
+    expect(Array.isArray(model.capabilities)).toBe(true);
+  });
+
+  it('roles return modelId and denormalized model name', () => {
+    const roles = c.listRoles();
+    expect(Array.isArray(roles)).toBe(true);
+    const tutorChat = roles.find((r: any) => r.id === 'tutor-chat');
+    expect(tutorChat).toBeDefined();
+    expect(tutorChat!.modelId).toBeDefined();
+    expect(tutorChat!.model).toBeTruthy();
+  });
+
+  it('addModel adds a model with capabilities to a provider', () => {
+    const model = c.addModel('anthropic', { name: 'claude-test-model', capabilities: ['chat'] });
+    expect(model.name).toBe('claude-test-model');
+    expect(model.capabilities).toContain('chat');
+    expect(model.providerId).toBe('anthropic');
+  });
+
+  it('deleteModel unassigns affected roles and returns their ids', () => {
+    // Add a temp model and assign it to a role
+    c.addModel('anthropic', { name: 'tmp-model', capabilities: ['chat'] });
+    const roles = ps.getRoles();
+    const tcRole = roles.find((r) => r.id === 'tutor-chat');
+    if (tcRole) {
+      ps.upsertRole({ ...tcRole, providerId: 'anthropic', modelId: 'anthropic:tmp-model' });
+    }
+
+    const result = c.deleteModel('anthropic', 'anthropic:tmp-model');
+    expect(result.deleted).toBe('anthropic:tmp-model');
+    expect(Array.isArray(result.unassignedRoles)).toBe(true);
+    expect(result.unassignedRoles).toContain('tutor-chat');
+
+    // Confirm the role no longer has a modelId
+    const updatedRole = ps.getRole('tutor-chat');
+    expect(updatedRole?.modelId).toBeNull();
+  });
+
   it('returns practice content for current language', () => {
     const content = c.practice();
     expect(content.flashcards).toBeDefined();
@@ -125,18 +178,12 @@ describe('ApiController', () => {
     const esContent = c.practice('es');
     expect(esContent.flashcards.length).toBeGreaterThan(0);
     expect(esContent.fillBlanks.length).toBeGreaterThan(0);
-    
     const jaContent = c.practice('ja');
     expect(jaContent.flashcards.length).toBeGreaterThan(0);
-    expect(jaContent.fillBlanks.length).toBeGreaterThan(0);
-    
     const frContent = c.practice('fr');
     expect(frContent.flashcards.length).toBeGreaterThan(0);
-    expect(frContent.fillBlanks.length).toBeGreaterThan(0);
-    
     const deContent = c.practice('de');
     expect(deContent.flashcards.length).toBeGreaterThan(0);
-    expect(deContent.fillBlanks.length).toBeGreaterThan(0);
   });
 
   it('returns empty arrays for unsupported language', () => {

@@ -1,2 +1,5 @@
 node_modules/
 .run-logs/
+backend/data/providers.db
+backend/data/providers.db-shm
+backend/data/providers.db-wal

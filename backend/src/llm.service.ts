@@ -48,7 +48,7 @@ export class LlmService {
   ): Promise<string> {
     const apiKey = this.resolveApiKey(provider.apiKeyRef);
     try {
-      if (provider.id === 'anthropic') {
+      if (provider.compatibilityFamily === 'anthropic-compatible') {
         return await this.callAnthropic(provider, role, messages, apiKey);
       }
       return await this.callOpenAICompatible(provider, role, messages, apiKey);

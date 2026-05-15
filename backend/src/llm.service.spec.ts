@@ -162,7 +162,7 @@ describe('LlmService', () => {
       });
 
       await svc.chat(
-        { id: 'openai-compatible', baseUrl: 'https://api.example.com/v1/', apiKeyRef: undefined },
+        { compatibilityFamily: 'openai-compatible', baseUrl: 'https://api.example.com/v1/', apiKeyRef: undefined },
         { model: 'gpt-4', temperature: 0.7 },
         [{ role: 'user', content: 'hi' }],
       );
@@ -173,11 +173,52 @@ describe('LlmService', () => {
     });
   });
 
+  // ── compatibilityFamily routing ────────────────────────────────────────────
+
+  describe('compatibilityFamily routing', () => {
+    it('routes anthropic-compatible providers to the Anthropic API', async () => {
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ content: [{ text: 'hi' }] }),
+      });
+
+      await svc.chat(
+        { compatibilityFamily: 'anthropic-compatible', baseUrl: 'https://api.anthropic.com/v1', apiKeyRef: 'ANTHROPIC_API_KEY' },
+        { model: 'claude-haiku-4-5', temperature: 0.7 },
+        [{ role: 'user', content: 'hello' }],
+      );
+
+      const calledUrl: string = fetchMock.mock.calls[0][0];
+      expect(calledUrl).toContain('/messages');
+      const headers = fetchMock.mock.calls[0][1].headers;
+      expect(headers['x-api-key']).toBe('sk-ant-test');
+      delete process.env.ANTHROPIC_API_KEY;
+    });
+
+    it('routes openai-compatible providers to the chat/completions API', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'hi' } }] }),
+      });
+
+      await svc.chat(
+        { compatibilityFamily: 'openai-compatible', baseUrl: 'https://api.example.com/v1', apiKeyRef: undefined },
+        { model: 'gpt-4', temperature: 0.7 },
+        [{ role: 'user', content: 'hello' }],
+      );
+
+      const calledUrl: string = fetchMock.mock.calls[0][0];
+      expect(calledUrl).toContain('/chat/completions');
+      expect(calledUrl).not.toContain('/messages');
+    });
+  });
+
   // ── OpenAI-compatible auth ─────────────────────────────────────────────────
 
   describe('OpenAI-compatible provider', () => {
     const provider = {
-      id: 'openai-compatible',
+      compatibilityFamily: 'openai-compatible' as const,
       baseUrl: 'https://api.example.com/v1',
       apiKeyRef: undefined as string | undefined,
     };
@@ -191,11 +232,7 @@ describe('LlmService', () => {
       });
 
       delete process.env.MYKEY_NOTEXIST;
-      await svc.chat(
-        { ...provider, apiKeyRef: 'MYKEY_NOTEXIST' },
-        role,
-        messages,
-      );
+      await svc.chat({ ...provider, apiKeyRef: 'MYKEY_NOTEXIST' }, role, messages);
 
       const headers = fetchMock.mock.calls[0][1].headers;
       expect(headers['Authorization']).toBe('Bearer MYKEY_NOTEXIST');
@@ -208,11 +245,7 @@ describe('LlmService', () => {
         json: async () => ({ choices: [{ message: { content: 'hi' } }] }),
       });
 
-      await svc.chat(
-        { ...provider, apiKeyRef: 'OPENAI_KEY_TEST' },
-        role,
-        messages,
-      );
+      await svc.chat({ ...provider, apiKeyRef: 'OPENAI_KEY_TEST' }, role, messages);
 
       const headers = fetchMock.mock.calls[0][1].headers;
       expect(headers['Authorization']).toBe('Bearer secret-from-env');
@@ -236,7 +269,7 @@ describe('LlmService', () => {
 
   describe('Anthropic provider', () => {
     const provider = {
-      id: 'anthropic',
+      compatibilityFamily: 'anthropic-compatible' as const,
       baseUrl: 'https://api.anthropic.com/v1',
       apiKeyRef: 'ANTHROPIC_API_KEY',
     };
