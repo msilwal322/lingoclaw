@@ -1,5 +1,2 @@
-node_modules
-.env
-.env.local
-.DS_Store
-backend/data/*.json
+node_modules/
+.run-logs/
