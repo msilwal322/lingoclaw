@@ -173,6 +173,30 @@ describe('LlmService', () => {
     });
   });
 
+  describe('transcribe', () => {
+    it('posts multipart audio to the OpenAI-compatible transcription endpoint', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ text: 'hola mundo' }),
+      });
+
+      const result = await svc.transcribe(
+        { compatibilityFamily: 'openai-compatible', baseUrl: 'https://api.example.com/v1', apiKeyRef: 'none' },
+        { model: 'whisper-1' },
+        Buffer.from('audio-bytes'),
+        'audio/webm',
+        'es',
+      );
+
+      expect(result).toBe('hola mundo');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [calledUrl, init] = fetchMock.mock.calls[0];
+      expect(calledUrl).toBe('https://api.example.com/v1/audio/transcriptions');
+      expect(init.method).toBe('POST');
+      expect(init.body).toBeInstanceOf(FormData);
+    });
+  });
+
   // ── compatibilityFamily routing ────────────────────────────────────────────
 
   describe('compatibilityFamily routing', () => {

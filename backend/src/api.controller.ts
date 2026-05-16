@@ -50,6 +50,7 @@ export class ApiController {
   // ── Voice ─────────────────────────────────────────────────────────────────
   @Post('voice/sessions') createVoiceSession() { return this.api.createVoiceSession(); }
   @Post('voice/sessions/:id/turns') voiceTurn(@Param('id') id: string, @Body() body: any) { return this.api.voiceTurn(id, String(body?.transcript ?? '')); }
+  @Post('voice/sessions/:id/transcribe') transcribeVoice(@Param('id') id: string, @Body() body: any) { return this.api.transcribeAudio(id, String(body?.audio ?? ''), String(body?.mimeType ?? 'audio/webm')); }
   @Post('voice/realtime/session') realtimeSession() { return this.api.realtimeSession(); }
 
   // ── Practice ──────────────────────────────────────────────────────────────

@@ -159,6 +159,34 @@ export class LlmService {
     };
   }
 
+  async transcribe(
+    provider: any,
+    role: any,
+    audioBuffer: Buffer,
+    mimeType: string,
+    languageCode?: string,
+  ): Promise<string> {
+    const apiKey = this.resolveApiKey(provider.apiKeyRef);
+    const baseUrl = (provider.baseUrl as string).replace(/\/+$/, '');
+    const url = `${baseUrl}/audio/transcriptions`;
+    const headers: Record<string, string> = {};
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const ext = (mimeType.split('/').pop()?.split(';')[0] ?? 'webm').replace(/^x-/, '');
+    const bytes = Uint8Array.from(audioBuffer);
+    const formData = new FormData();
+    formData.append('file', new Blob([bytes], { type: mimeType }), `audio.${ext}`);
+    formData.append('model', role.model as string);
+    if (languageCode) formData.append('language', languageCode);
+
+    const resp = await fetch(url, { method: 'POST', headers, body: formData });
+    if (!resp.ok) {
+      throw new Error(`STT API ${resp.status}: ${await resp.text()}`);
+    }
+    const data: any = await resp.json();
+    return String(data.text ?? '').trim();
+  }
+
   private async callOpenAICompatible(
     provider: any,
     role: any,

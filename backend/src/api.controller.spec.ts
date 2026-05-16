@@ -34,6 +34,7 @@ describe('ApiController', () => {
     expect(r.endpoints.length).toBeGreaterThan(0);
     expect(r.endpoints).toContain('/voice/sessions');
     expect(r.endpoints).toContain('/voice/sessions/:id/turns');
+    expect(r.endpoints).toContain('/voice/sessions/:id/transcribe');
   });
 
   it('is healthy', () => expect(c.health().ok).toBe(true));
@@ -55,6 +56,19 @@ describe('ApiController', () => {
     expect(result.assistantMessage.content).toBeDefined();
     expect(typeof result.reply).toBe('string');
   }, 10000);
+
+  it('transcribes audio through the configured stt role', async () => {
+    const s = c.createVoiceSession();
+    jest.spyOn(llm, 'transcribe').mockResolvedValue('hola mundo');
+
+    const result = await c.transcribeVoice(s.id, {
+      audio: Buffer.from('fake-audio').toString('base64'),
+      mimeType: 'audio/webm',
+    });
+
+    expect(result.transcript).toBe('hola mundo');
+    expect(llm.transcribe).toHaveBeenCalled();
+  });
 
   it('voice turn falls back to tutor-chat when voice-talk is disabled', async () => {
     const s = c.createVoiceSession();

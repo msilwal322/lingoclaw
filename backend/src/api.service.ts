@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { StoreService } from './store/store.service';
 import { LlmService } from './llm.service';
 import { ProvidersStore, makeModelId } from './providers/providers.store';
@@ -95,7 +95,7 @@ export class ApiService {
       endpoints: ['/health','/languages','/me','/me/progress','/lessons','/lessons/:id','/stories','/stories/generate',
         '/achievements','/leaderboard','/providers','/providers/:id','/providers/:id/models',
         '/providers/:id/models/:modelId','/providers/roles','/chat/sessions','/voice/sessions',
-        '/voice/sessions/:id/turns','/voice/realtime/session','/practice'],
+        '/voice/sessions/:id/turns','/voice/sessions/:id/transcribe','/voice/realtime/session','/practice'],
     };
   }
   languages() { return this.store.db.languages; }
@@ -384,6 +384,40 @@ export class ApiService {
     this.store.db.voiceMessages.push(assistant);
     this.store.save();
     return { userMessage: user, assistantMessage: assistant, transcript, reply: replyContent! };
+  }
+
+  async transcribeAudio(sessionId: string, audioBase64: string, mimeType: string) {
+    if (!this.store.db.voiceSessions) this.store.db.voiceSessions = [];
+    if (!this.store.db.voiceSessions.some((s: any) => s.id === sessionId))
+      throw new NotFoundException('Voice session not found');
+    if (!audioBase64) throw new BadRequestException('No audio data provided');
+
+    const sttResolved = this.resolveRoleWithProvider('stt');
+    if (!sttResolved) {
+      throw new ServiceUnavailableException(
+        'STT is not configured. Please enable the stt role in provider settings.',
+      );
+    }
+
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
+    const voiceSession = this.store.db.voiceSessions.find((s: any) => s.id === sessionId);
+    const langCode = voiceSession?.languageCode ?? this.profile().currentLanguage ?? undefined;
+
+    try {
+      const transcript = await this.llm.transcribe(
+        sttResolved.provider,
+        sttResolved.role,
+        audioBuffer,
+        mimeType || 'audio/webm',
+        langCode,
+      );
+      if (!transcript) {
+        throw new BadGatewayException('STT provider returned an empty transcript');
+      }
+      return { transcript };
+    } catch (err: any) {
+      throw new BadGatewayException(`STT transcription failed: ${err?.message ?? 'unknown error'}`);
+    }
   }
 
   async realtimeSession() {
