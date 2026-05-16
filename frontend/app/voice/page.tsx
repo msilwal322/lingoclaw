@@ -335,7 +335,7 @@ export default function VoicePage() {
 
         recognition.onerror = (event) => {
           console.error("Speech recognition error:", event.error);
-          setTranscriptError('Browser speech recognition failed. Falling back to manual input or backend STT.');
+          setTranscriptError('Browser speech recognition failed. Try typing your message manually.');
           setIsRecording(false);
         };
 

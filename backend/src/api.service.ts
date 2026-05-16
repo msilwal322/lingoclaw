@@ -403,21 +403,22 @@ export class ApiService {
     const voiceSession = this.store.db.voiceSessions.find((s: any) => s.id === sessionId);
     const langCode = voiceSession?.languageCode ?? this.profile().currentLanguage ?? undefined;
 
+    let transcript: string;
     try {
-      const transcript = await this.llm.transcribe(
+      transcript = await this.llm.transcribe(
         sttResolved.provider,
         sttResolved.role,
         audioBuffer,
         mimeType || 'audio/webm',
         langCode,
       );
-      if (!transcript) {
-        throw new BadGatewayException('STT provider returned an empty transcript');
-      }
-      return { transcript };
     } catch (err: any) {
       throw new BadGatewayException(`STT transcription failed: ${err?.message ?? 'unknown error'}`);
     }
+    if (!transcript) {
+      throw new BadGatewayException('STT provider returned an empty transcript');
+    }
+    return { transcript };
   }
 
   async realtimeSession() {
