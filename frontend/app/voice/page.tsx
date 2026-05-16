@@ -96,9 +96,15 @@ export default function VoicePage() {
   const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [manualTranscript, setManualTranscript] = useState("");
   const [hasSpeechRecognition, setHasSpeechRecognition] = useState(false);
+  const [hasMicSupport, setHasMicSupport] = useState(false);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Realtime mode state
   const [realtimeState, setRealtimeState] = useState<RealtimeConnectionState>('disconnected');
@@ -164,6 +170,7 @@ export default function VoicePage() {
     if (!sessionId || !transcript.trim() || isSending) return;
     
     setIsSending(true);
+    setTranscriptError(null);
     setManualTranscript("");
     
     try {
@@ -186,39 +193,156 @@ export default function VoicePage() {
       ]);
     } catch (err) {
       console.error("Failed to send voice turn:", err);
+      setTranscriptError(err instanceof Error ? err.message : "Failed to send transcript.");
     } finally {
       setIsSending(false);
     }
   }, [sessionId, isSending]);
 
+  const blobToBase64 = useCallback((blob: Blob) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Failed to read recorded audio.'));
+        return;
+      }
+      resolve(result.split(',')[1] ?? '');
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read recorded audio.'));
+    reader.readAsDataURL(blob);
+  }), []);
+
+  const stopTranscriptMediaStream = useCallback(() => {
+    mediaRecorderRef.current = null;
+    mediaChunksRef.current = [];
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+  }, []);
+
+  const stopTranscriptRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      return;
+    }
+    setIsRecording(false);
+    stopTranscriptMediaStream();
+  }, [stopTranscriptMediaStream]);
+
+  const startTranscriptRecording = useCallback(async () => {
+    if (!sessionId || isSending || isTranscribing) return;
+    if (typeof window === 'undefined' || typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setTranscriptError('Transcript mode requires microphone recording support in this browser.');
+      return;
+    }
+
+    setTranscriptError(null);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeTypeCandidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+      const mimeType = mimeTypeCandidates.find((candidate) => {
+        try {
+          return typeof MediaRecorder.isTypeSupported === 'function' ? MediaRecorder.isTypeSupported(candidate) : candidate === 'audio/webm';
+        } catch {
+          return false;
+        }
+      });
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      mediaChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          mediaChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = (event) => {
+        console.error('Transcript recorder error:', event);
+        setTranscriptError('Recording failed. Please try again or type your message manually.');
+        setIsRecording(false);
+        setIsTranscribing(false);
+        stopTranscriptMediaStream();
+      };
+
+      recorder.onstop = async () => {
+        setIsRecording(false);
+        const chunks = [...mediaChunksRef.current];
+        const recordedMimeType = recorder.mimeType || mimeType || 'audio/webm';
+        stopTranscriptMediaStream();
+
+        if (chunks.length === 0) {
+          setTranscriptError('No audio was captured. Please try again.');
+          return;
+        }
+
+        setIsTranscribing(true);
+        try {
+          const audioBlob = new Blob(chunks, { type: recordedMimeType });
+          const base64Audio = await blobToBase64(audioBlob);
+          const result = await api.transcribeVoice(sessionId, base64Audio, recordedMimeType);
+          if (!result.transcript.trim()) {
+            throw new Error('Speech-to-text returned an empty transcript.');
+          }
+          await handleTranscriptSubmit(result.transcript);
+        } catch (err) {
+          console.error('Failed to transcribe recorded audio:', err);
+          setTranscriptError(err instanceof Error ? err.message : 'Failed to transcribe audio.');
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Failed to start transcript recording:', err);
+      setTranscriptError(err instanceof Error ? err.message : 'Could not access the microphone.');
+      setIsRecording(false);
+      stopTranscriptMediaStream();
+    }
+  }, [blobToBase64, handleTranscriptSubmit, isSending, isTranscribing, sessionId, stopTranscriptMediaStream]);
+
   useEffect(() => {
-    // Check for Web Speech API support
+    // Check for mic and speech API support
     if (typeof window !== "undefined") {
+      setHasMicSupport(
+        typeof navigator !== "undefined"
+          && !!navigator.mediaDevices?.getUserMedia
+          && typeof MediaRecorder !== 'undefined'
+      );
+
       const speechWindow = window as BrowserWindowWithSpeech;
       const SpeechRecognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
       setHasSpeechRecognition(!!SpeechRecognition);
-      
+
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
         recognition.lang = `${currentLanguageCode}-${currentLanguageCode.toUpperCase()}`;
-        
+
         recognition.onresult = (event) => {
           const transcript = event.results[0][0].transcript;
           setIsRecording(false);
           handleTranscriptSubmit(transcript);
         };
-        
+
         recognition.onerror = (event) => {
           console.error("Speech recognition error:", event.error);
+          setTranscriptError('Browser speech recognition failed. Falling back to manual input or backend STT.');
           setIsRecording(false);
         };
-        
+
         recognition.onend = () => {
           setIsRecording(false);
         };
-        
+
         recognitionRef.current = recognition;
       }
     }
@@ -503,8 +627,9 @@ export default function VoicePage() {
 
   useEffect(() => () => {
     if (recognitionRef.current) recognitionRef.current.stop();
+    stopTranscriptRecording();
     if (realtimeClientRef.current) realtimeClientRef.current.disconnect();
-  }, []);
+  }, [stopTranscriptRecording]);
 
   // Transcript mode functions
   const startSession = async () => {
@@ -513,25 +638,44 @@ export default function VoicePage() {
       setSessionId(session.id);
       setConversation([]);
       setManualTranscript("");
+      setTranscriptError(null);
     } catch (err) {
       console.error("Failed to start session:", err);
+      setTranscriptError(err instanceof Error ? err.message : 'Failed to start transcript session.');
     }
   };
 
   const resetSession = () => {
+    if (recognitionRef.current) recognitionRef.current.stop();
+    stopTranscriptRecording();
     setSessionId(null);
     setConversation([]);
     setManualTranscript("");
+    setTranscriptError(null);
   };
 
   const toggleRecording = () => {
-    if (!recognitionRef.current) return;
+    const canUseBackendStt = sttStatus.exists && sttStatus.enabled && hasMicSupport;
+    if (canUseBackendStt) {
+      if (isRecording) {
+        stopTranscriptRecording();
+      } else {
+        void startTranscriptRecording();
+      }
+      return;
+    }
+
+    if (!recognitionRef.current) {
+      setTranscriptError('Transcript mode needs either backend STT + microphone support or browser speech recognition.');
+      return;
+    }
     
     if (isRecording) {
       recognitionRef.current.stop();
       setIsRecording(false);
     } else {
       recognitionRef.current.start();
+      setTranscriptError(null);
       setIsRecording(true);
     }
   };
@@ -792,28 +936,46 @@ export default function VoicePage() {
                           </div>
 
                           {/* Input Area */}
-                          {hasSpeechRecognition ? (
+                          {(sttStatus.exists && sttStatus.enabled && hasMicSupport) || hasSpeechRecognition ? (
                             <div className="space-y-2">
+                              {transcriptError && (
+                                <div className="border border-[#ff453a]/30 rounded bg-[#252121] px-3 py-2 text-xs text-[#ffb4ab]">
+                                  {transcriptError}
+                                </div>
+                              )}
                               <button 
                                 onClick={toggleRecording}
-                                disabled={isSending}
+                                disabled={isSending || isTranscribing}
                                 className={`w-full border rounded px-5 py-4 font-bold inline-flex items-center justify-center gap-3 transition-colors ${
                                   isRecording 
                                     ? "border-[#ff453a]/30 bg-[#ff453a] text-[#fdfcfc]" 
-                                    : isSending
+                                    : isSending || isTranscribing
                                     ? "border-white/10 bg-[#252121] text-[#6a6868] cursor-not-allowed"
                                     : "border-white/15 bg-[#fdfcfc] text-[#201d1d] hover:bg-[#e0dfdf]"
                                 }`}
                               >
                                 <Mic size={18}/>
-                                {isRecording ? "recording... (release to stop)" : isSending ? "processing..." : "press to speak"}
+                                {isRecording
+                                  ? (sttStatus.exists && sttStatus.enabled && hasMicSupport ? "recording... click to stop" : "listening...")
+                                  : isTranscribing
+                                  ? "transcribing..."
+                                  : isSending
+                                  ? "processing..."
+                                  : "press to speak"}
                               </button>
                               <div className="text-[10px] text-[#6a6868] text-center">
-                                Using browser speech recognition (local, non-streaming)
+                                {sttStatus.exists && sttStatus.enabled && hasMicSupport
+                                  ? 'Using backend STT for transcript mode.'
+                                  : 'Using browser speech recognition.'}
                               </div>
                             </div>
                           ) : (
                             <form onSubmit={handleManualSubmit} className="space-y-2">
+                              {transcriptError && (
+                                <div className="border border-[#ff453a]/30 rounded bg-[#252121] px-3 py-2 text-xs text-[#ffb4ab]">
+                                  {transcriptError}
+                                </div>
+                              )}
                               <textarea
                                 value={manualTranscript}
                                 onChange={(e) => setManualTranscript(e.target.value)}
@@ -829,7 +991,7 @@ export default function VoicePage() {
                                 {isSending ? "sending..." : "send message"}
                               </button>
                               <div className="text-[10px] text-[#6a6868] text-center">
-                                Browser speech recognition not available. Using text input fallback.
+                                Microphone transcription is unavailable. Using text input fallback.
                               </div>
                             </form>
                           )}

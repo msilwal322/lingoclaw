@@ -76,6 +76,7 @@ export const api = {
   // Voice
   createVoiceSession: () => request<{ id: string; createdAt: string; languageCode: string }>("/voice/sessions", { method: "POST", body: JSON.stringify({}) }),
   sendVoiceTurn: (sessionId: string, transcript: string) => request<{ userMessage: { id: string; role: "user"; content: string; createdAt: string }; assistantMessage: { id: string; role: "assistant"; content: string; createdAt: string }; transcript: string; reply: string }>(`/voice/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: JSON.stringify({ transcript }) }),
+  transcribeVoice: (sessionId: string, audio: string, mimeType: string) => request<{ transcript: string }>(`/voice/sessions/${encodeURIComponent(sessionId)}/transcribe`, { method: "POST", body: JSON.stringify({ audio, mimeType }) }),
   createRealtimeSession: () => request<RealtimeConfig>("/voice/realtime/session", { method: "POST", body: JSON.stringify({}) }),
 
   // Practice
