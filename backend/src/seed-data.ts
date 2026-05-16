@@ -37,7 +37,7 @@ export const seed = {
   roles:[
     {id:'tutor-chat',label:'Tutor chat',purpose:'Socratic corrections, grammar explanations, and adaptive conversation.',providerId:'anthropic',model:'claude-sonnet-4-5',temperature:0.7,enabled:true},
     {id:'stt',label:'Speech to text',purpose:'Transcribe learner speech for voice talk and pronunciation checks.',providerId:'whisper',model:'small',temperature:0,enabled:true},
-    {id:'voice-talk',label:'Voice talk brain',purpose:'Low-latency spoken roleplay with short turns and corrections. Realtime-capable models preferred.',providerId:'openai-compatible',model:'gpt-realtime-mini',temperature:0.5,enabled:true},
+    {id:'voice-talk',label:'Voice talk brain',purpose:'Low-latency spoken roleplay with short turns and corrections. Realtime-capable models preferred.',providerId:'openai-compatible',model:'gpt-realtime-mini',temperature:0.5,enabled:false},
     {id:'tts',label:'Text to speech',purpose:'Pronunciation playback and listening comprehension prompts.',providerId:'piper',model:'es_ES-sharvard-medium',temperature:0,enabled:true}
   ],
   chatSessions:[] as any[], chatMessages:[] as any[], voiceSessions:[] as any[], voiceMessages:[] as any[],

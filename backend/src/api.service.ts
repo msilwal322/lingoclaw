@@ -421,7 +421,12 @@ export class ApiService {
     return { transcript };
   }
 
-  async realtimeSession() {
+  async realtimeSession(sessionId?: string | null) {
+    if (!sessionId) throw new BadRequestException('sessionId is required to bootstrap a realtime session.');
+    if (!this.store.db.voiceSessions) this.store.db.voiceSessions = [];
+    const voiceSession = this.store.db.voiceSessions.find((s: any) => s.id === sessionId);
+    if (!voiceSession) throw new NotFoundException(`Voice session '${sessionId}' not found.`);
+
     const resolved = this.resolveVoiceRole();
     if (!resolved) {
       throw new ServiceUnavailableException('Voice chat is not configured. Please enable voice-talk or tutor-chat in settings.');
@@ -434,16 +439,19 @@ export class ApiService {
       throw new BadGatewayException('The configured voice-talk model is not realtime-capable. Assign a model with the "realtime" capability in the providers settings.');
     }
 
-    const voiceSession = this.store.db.voiceSessions?.[this.store.db.voiceSessions.length - 1];
-    const langCode = voiceSession?.languageCode ?? this.profile().currentLanguage ?? 'es';
+    const langCode = voiceSession.languageCode ?? this.profile().currentLanguage ?? 'es';
     const langName = this.store.db.languages.find((l: any) => l.code === langCode)?.name ?? langCode;
     const instructions = `You are a conversational ${langName} language practice partner. Engage in brief, natural dialogue with the learner. Keep responses short (1-3 sentences) for spoken conversation. Gently correct major mistakes inline and encourage the learner. Speak naturally as if in a real conversation. The learner is practicing ${langName}.`;
+
+    const sttResolved = this.resolveRoleWithProvider('stt');
+    const inputAudioTranscriptionModel = sttResolved ? sttResolved.role.model : undefined;
+    const turnDetection = { type: 'server_vad' as const, threshold: 0.5, silence_duration_ms: 700, create_response: true, interrupt_response: true };
 
     const realtime = await this.llm.createRealtimeSession(provider, role, {
       instructions,
       voice: 'alloy',
-      inputAudioTranscriptionModel: 'whisper-1',
-      turnDetection: { type: 'server_vad', threshold: 0.5, silence_duration_ms: 700, create_response: true, interrupt_response: true },
+      ...(inputAudioTranscriptionModel ? { inputAudioTranscriptionModel } : {}),
+      turnDetection,
     });
 
     return {
@@ -457,6 +465,8 @@ export class ApiService {
       languageName: langName,
       instructions,
       voice: 'alloy',
+      inputAudioTranscription: inputAudioTranscriptionModel ? { model: inputAudioTranscriptionModel } : undefined,
+      turnDetection,
     };
   }
 

@@ -464,7 +464,8 @@ export default function VoicePage() {
         throw new Error(`Microphone access denied or unavailable. ${micErrorName === 'NotAllowedError' ? 'Please grant microphone permissions and try again.' : 'Check your device settings.'}`);
       }
 
-      const config = await api.createRealtimeSession();
+      const rtSession = await api.createVoiceSession();
+      const config = await api.createRealtimeSession(rtSession.id);
 
       const client = new RealtimeClient({
         connectUrl: config.connectUrl,
@@ -474,14 +475,8 @@ export default function VoicePage() {
         temperature: config.temperature,
         instructions: config.instructions,
         voice: config.voice,
-        inputAudioTranscription: { model: 'whisper-1' },
-        turnDetection: {
-          type: 'server_vad',
-          threshold: 0.5,
-          silence_duration_ms: 700,
-          create_response: true,
-          interrupt_response: true,
-        },
+        inputAudioTranscription: config.inputAudioTranscription,
+        turnDetection: config.turnDetection,
       });
 
       // Set up event listeners

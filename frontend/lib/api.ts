@@ -34,6 +34,14 @@ export type RealtimeConfig = {
   languageName: string;
   instructions: string;
   voice: string;
+  inputAudioTranscription?: { model?: string };
+  turnDetection?: {
+    type: "server_vad";
+    threshold?: number;
+    silence_duration_ms?: number;
+    create_response?: boolean;
+    interrupt_response?: boolean;
+  } | null;
 };
 
 export const api = {
@@ -77,7 +85,7 @@ export const api = {
   createVoiceSession: () => request<{ id: string; createdAt: string; languageCode: string }>("/voice/sessions", { method: "POST", body: JSON.stringify({}) }),
   sendVoiceTurn: (sessionId: string, transcript: string) => request<{ userMessage: { id: string; role: "user"; content: string; createdAt: string }; assistantMessage: { id: string; role: "assistant"; content: string; createdAt: string }; transcript: string; reply: string }>(`/voice/sessions/${encodeURIComponent(sessionId)}/turns`, { method: "POST", body: JSON.stringify({ transcript }) }),
   transcribeVoice: (sessionId: string, audio: string, mimeType: string) => request<{ transcript: string }>(`/voice/sessions/${encodeURIComponent(sessionId)}/transcribe`, { method: "POST", body: JSON.stringify({ audio, mimeType }) }),
-  createRealtimeSession: () => request<RealtimeConfig>("/voice/realtime/session", { method: "POST", body: JSON.stringify({}) }),
+  createRealtimeSession: (sessionId: string) => request<RealtimeConfig>("/voice/realtime/session", { method: "POST", body: JSON.stringify({ sessionId }) }),
 
   // Practice
   practice: (lang?: string) => request<PracticeContent>(lang ? `/practice?lang=${encodeURIComponent(lang)}` : "/practice"),
