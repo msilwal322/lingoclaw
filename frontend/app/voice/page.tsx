@@ -44,6 +44,12 @@ type BrowserWindowWithSpeech = Window & typeof globalThis & {
   webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
 };
 
+const LANG_TO_BCP47: Record<string, string> = {
+  es: 'es-ES', ja: 'ja-JP', fr: 'fr-FR', de: 'de-DE',
+  zh: 'zh-CN', pt: 'pt-BR', ko: 'ko-KR', it: 'it-IT',
+  ru: 'ru-RU', ar: 'ar-SA', hi: 'hi-IN', nl: 'nl-NL',
+};
+
 type VoiceMode = 'transcript' | 'realtime';
 type RealtimeConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 type RealtimeResponsePayload = Extract<RealtimeEvent, { type: 'response.done' }>['response'];
@@ -325,7 +331,7 @@ export default function VoicePage() {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = `${currentLanguageCode}-${currentLanguageCode.toUpperCase()}`;
+        recognition.lang = LANG_TO_BCP47[currentLanguageCode] ?? `${currentLanguageCode}-${currentLanguageCode.toUpperCase()}`;
 
         recognition.onresult = (event) => {
           const transcript = event.results[0][0].transcript;

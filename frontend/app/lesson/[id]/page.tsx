@@ -42,6 +42,7 @@ export default function LessonPage() {
   const [lives, setLives] = useState(3);
   const [score, setScore] = useState(0);
   const [done, setDone] = useState(false);
+  const [xpEarned, setXpEarned] = useState(0);
 
   const question = questions[currentQ];
   const progress = Math.round(((currentQ) / questions.length) * 100);
@@ -60,8 +61,9 @@ export default function LessonPage() {
 
   function handleNext() {
     if (currentQ + 1 >= questions.length || lives <= 0) {
-      api.completeLesson(lessonId, score).catch(() => {});
-      setDone(true);
+      api.completeLesson(lessonId, score)
+        .then((res) => { setXpEarned(res.xpEarned); setDone(true); })
+        .catch(() => setDone(true));
     } else {
       setCurrentQ((q) => q + 1);
       setSelected(null);
@@ -108,10 +110,14 @@ export default function LessonPage() {
             You got {score} out of {questions.length} correct.
           </p>
 
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="border border-white/10 rounded p-4 text-center bg-[#302c2c]">
               <div className="text-2xl font-bold" style={{color: "#007aff"}}>{pct}%</div>
               <div className="text-xs text-muted mt-1">Accuracy</div>
+            </div>
+            <div className="border border-white/10 rounded p-4 text-center bg-[#302c2c]">
+              <div className="text-2xl font-bold" style={{color: "#ff9f0a"}}>+{xpEarned}</div>
+              <div className="text-xs text-muted mt-1">XP Earned</div>
             </div>
             <div className="border border-white/10 rounded p-4 text-center bg-[#302c2c]">
               <div className="text-2xl font-bold flex items-center justify-center gap-1" style={{color: "#ff453a"}}>

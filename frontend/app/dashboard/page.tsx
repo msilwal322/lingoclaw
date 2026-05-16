@@ -73,7 +73,8 @@ export default function DashboardPage() {
       .then(([nextProfile, nextLanguages, nextLessons]) => {
         setProfile(nextProfile);
         setLanguages(nextLanguages);
-        setLessons(nextLessons);
+        const byLang = nextLessons.filter((l) => l.lang === nextProfile.currentLanguage);
+        setLessons(byLang.length ? byLang : nextLessons);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load dashboard"));
   }, []);
@@ -98,6 +99,7 @@ export default function DashboardPage() {
   const levelPct = currentLang ? Math.round((currentLang.xp / currentLang.totalXp) * 100) : 0;
 
   const todayLessons = lessons.slice(0, 4);
+  const nextLesson = lessons.find((l) => !l.completed && !l.locked) ?? lessons[0];
 
   return (
     <AppShell>
@@ -143,7 +145,7 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-lg">Available lessons</h2>
-                <Link href="/lesson/l3" className="text-xs text-[#007aff] hover:text-[#5ac8fa] flex items-center gap-1">
+                <Link href={`/lesson/${nextLesson?.id ?? "l1"}`} className="text-xs text-[#007aff] hover:text-[#5ac8fa] flex items-center gap-1">
                   View all <ArrowRight size={12} />
                 </Link>
               </div>
@@ -174,7 +176,7 @@ export default function DashboardPage() {
                     <div className="progress-fill" style={{ width: `${levelPct}%` }} />
                   </div>
                 </div>
-                <Link href="/lesson/l3" className="border border-white/15 bg-[#302c2c] hover:bg-[#3a3535] rounded px-4 py-2.5 text-sm flex items-center justify-center gap-2 transition-colors">
+                <Link href={`/lesson/${nextLesson?.id ?? "l1"}`} className="border border-white/15 bg-[#302c2c] hover:bg-[#3a3535] rounded px-4 py-2.5 text-sm flex items-center justify-center gap-2 transition-colors">
                   Continue learning <ArrowRight size={14} />
                 </Link>
               </div>

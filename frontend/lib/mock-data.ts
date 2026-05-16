@@ -10,6 +10,7 @@ export type Language = {
 
 export type Lesson = {
   id: string;
+  lang?: string;
   title: string;
   description: string;
   type: "vocabulary" | "grammar" | "listening" | "speaking";

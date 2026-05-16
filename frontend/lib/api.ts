@@ -42,7 +42,7 @@ export const api = {
   me: () => request<UserProfile>("/me"),
   updateMe: (patch: Partial<UserProfile>) => request<UserProfile>("/me", { method: "PATCH", body: JSON.stringify(patch) }),
   progress: () => request<Pick<UserProfile, "totalXp" | "todayXp" | "streak" | "longestStreak" | "completedLessons" | "completedStories" | "dailyGoalXp">>("/me/progress"),
-  lessons: (lang = "es") => request<Lesson[]>(`/lessons?lang=${encodeURIComponent(lang)}`),
+  lessons: (lang?: string) => request<Lesson[]>(lang ? `/lessons?lang=${encodeURIComponent(lang)}` : "/lessons"),
   lesson: (id: string) => request<LessonWithQuestions>(`/lessons/${encodeURIComponent(id)}`),
   completeLesson: (id: string, score: number) => request<{ profile: UserProfile; lesson: Lesson; score: number; xpEarned: number }>(`/lessons/${encodeURIComponent(id)}/complete`, { method: "POST", body: JSON.stringify({ score }) }),
   stories: (lang?: string) => request<Story[]>(lang ? `/stories?lang=${encodeURIComponent(lang)}` : "/stories"),
