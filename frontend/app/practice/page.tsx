@@ -18,8 +18,8 @@ export default function PracticePage() {
   const [flip, setFlip] = useState<FlipState>("front");
   const [known, setKnown] = useState<Set<number>>(new Set());
   const [unknown, setUnknown] = useState<Set<number>>(new Set());
-  const [currentLanguage, setCurrentLanguage] = useState<string>("Spanish");
-  const [currentLangCode, setCurrentLangCode] = useState<string>("es");
+  const [currentLanguage, setCurrentLanguage] = useState<string>("");
+  const [currentLangCode, setCurrentLangCode] = useState<string>("");
 
   const [fillIdx, setFillIdx] = useState(0);
   const [fillInput, setFillInput] = useState("");
@@ -83,9 +83,11 @@ export default function PracticePage() {
           <div className="mb-8">
             <h1 className="text-2xl font-bold mb-1">Practice</h1>
             <p className="text-muted text-sm">Reinforce what you&apos;ve learned with different practice modes.</p>
-            <p className="text-xs text-[#6a6868] mt-2">
-              Current language: {currentLanguage}
-            </p>
+            {currentLanguage && (
+              <p className="text-xs text-[#6a6868] mt-2">
+                Current language: {currentLanguage}
+              </p>
+            )}
           </div>
 
           {loading && (
@@ -94,7 +96,7 @@ export default function PracticePage() {
 
           {!loading && (flashcards.length === 0 && fillBlanks.length === 0) && (
             <div className="border border-white/10 rounded p-5 mb-8 bg-[#252121]">
-              <p className="text-sm text-muted">No practice content available for {currentLanguage} yet.</p>
+              <p className="text-sm text-muted">No practice content available{currentLanguage ? ` for ${currentLanguage}` : ""} yet.</p>
             </div>
           )}
 
@@ -132,7 +134,7 @@ export default function PracticePage() {
               </p>
               <div className="flex items-center gap-2 mt-4">
                 <span className="text-xs font-medium" style={{color: "#007aff"}}>{flashcards.length} cards</span>
-                <span className="text-xs text-muted">• {currentLanguage}</span>
+                {currentLanguage && <span className="text-xs text-muted">• {currentLanguage}</span>}
               </div>
             </button>
             )}
@@ -155,7 +157,7 @@ export default function PracticePage() {
               </p>
               <div className="flex items-center gap-2 mt-4">
                 <span className="text-xs font-medium" style={{color: "#5ac8fa"}}>{fillBlanks.length} questions</span>
-                <span className="text-xs text-muted">• {currentLanguage}</span>
+                {currentLanguage && <span className="text-xs text-muted">• {currentLanguage}</span>}
               </div>
             </button>
             )}
@@ -215,7 +217,7 @@ export default function PracticePage() {
           >
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <span className="text-xs text-muted uppercase tracking-wider">
-                {flip === "front" ? currentLanguage : "English"}
+                {flip === "front" ? (currentLanguage || "Target") : "English"}
               </span>
               <span className="text-xs" style={{color: "#007aff"}}>Tap to flip</span>
             </div>

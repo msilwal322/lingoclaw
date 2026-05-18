@@ -90,8 +90,8 @@ export default function VoicePage() {
   const [ttsStatus, setTtsStatus] = useState<RoleStatus>({ exists: false, enabled: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentLanguage, setCurrentLanguage] = useState<string>("Spanish");
-  const [currentLanguageCode, setCurrentLanguageCode] = useState<string>("es");
+  const [currentLanguage, setCurrentLanguage] = useState<string>("");
+  const [currentLanguageCode, setCurrentLanguageCode] = useState<string>("");
   const [languageOptions, setLanguageOptions] = useState<Array<{code: string, name: string}>>([]);
   
   // Voice mode
@@ -327,7 +327,7 @@ export default function VoicePage() {
       const SpeechRecognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
       setHasSpeechRecognition(!!SpeechRecognition);
 
-      if (SpeechRecognition) {
+      if (SpeechRecognition && currentLanguageCode) {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
@@ -1173,7 +1173,7 @@ export default function VoicePage() {
                           <option key={lang.code} value={lang.code}>{lang.name} / {lang.code}</option>
                         ))
                       ) : (
-                        <option>{currentLanguage} (loading...)</option>
+                        <option>{currentLanguage ? `${currentLanguage} (loading...)` : "Loading..."}</option>
                       )}
                     </select>
                   </label>

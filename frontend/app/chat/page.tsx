@@ -11,7 +11,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [currentLanguage, setCurrentLanguage] = useState<string>("Spanish");
+  const [currentLanguage, setCurrentLanguage] = useState<string>("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -86,7 +86,7 @@ export default function ChatPage() {
                 <div className="font-bold text-sm">Claw</div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full" style={{background: "#30d158"}} />
-                  <span className="text-xs text-muted">AI Language Tutor • {currentLanguage}</span>
+                  <span className="text-xs text-muted">AI Language Tutor{currentLanguage ? ` • ${currentLanguage}` : ""}</span>
                 </div>
               </div>
           </div>
@@ -174,7 +174,7 @@ export default function ChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder={`Message Claw... (${currentLanguage} or English)`}
+                placeholder={currentLanguage ? `Message Claw... (${currentLanguage} or English)` : "Message Claw..."}
                 className="flex-1 bg-transparent text-white placeholder-[#6a6868] text-sm focus:outline-none"
               />
               <button className="text-muted hover:text-[#007aff] transition-colors">
