@@ -112,11 +112,55 @@ describe('ApiController', () => {
       session: { id: 'sess_123' },
     });
 
-    const result = await c.realtimeSession();
+    const s = c.createVoiceSession();
+    const result = await c.realtimeSession({ sessionId: s.id });
     expect(result.transport).toBe('webrtc');
     expect(result.connectUrl).toContain('/realtime');
     expect(result.ephemeralKey).toBe('ephemeral_test_key');
     expect(result.model).toContain('realtime');
+  });
+
+  it('realtimeSession omits inputAudioTranscriptionModel when stt provider differs from voice provider', async () => {
+    const vtRole = ps.getRole('voice-talk');
+    if (vtRole) {
+      ps.upsertRole({ ...vtRole, enabled: true, providerId: 'openai-compatible', modelId: 'openai-compatible:gpt-realtime-mini' });
+    }
+    // stt role uses 'whisper' provider — different from 'openai-compatible'
+    const sttRole = ps.getRole('stt');
+    expect(sttRole?.providerId).toBe('whisper');
+
+    let capturedOptions: any;
+    jest.spyOn(llm, 'createRealtimeSession').mockImplementation(async (_provider, _role, options) => {
+      capturedOptions = options;
+      return { connectUrl: 'https://example.com/realtime', ephemeralKey: 'key', authMode: 'bearer', session: {} };
+    });
+
+    const s = c.createVoiceSession();
+    await c.realtimeSession({ sessionId: s.id });
+    expect(capturedOptions.inputAudioTranscriptionModel).toBeUndefined();
+  });
+
+  it('realtimeSession passes inputAudioTranscriptionModel when stt provider matches voice provider', async () => {
+    // Move voice-talk to whisper provider so it matches stt
+    const vtRole = ps.getRole('voice-talk');
+    const whisperProvider = ps.getProvider('whisper');
+    expect(whisperProvider).toBeDefined();
+    // Add a fake realtime model to whisper so the capability check passes
+    ps.addModel({ id: 'whisper:whisper-realtime', providerId: 'whisper', name: 'whisper-realtime', capabilities: ['realtime'] });
+    if (vtRole) {
+      ps.upsertRole({ ...vtRole, enabled: true, providerId: 'whisper', modelId: 'whisper:whisper-realtime' });
+    }
+
+    let capturedOptions: any;
+    jest.spyOn(llm, 'createRealtimeSession').mockImplementation(async (_provider, _role, options) => {
+      capturedOptions = options;
+      return { connectUrl: 'https://example.com/realtime', ephemeralKey: 'key', authMode: 'bearer', session: {} };
+    });
+
+    const s = c.createVoiceSession();
+    await c.realtimeSession({ sessionId: s.id });
+    // Both voice-talk and stt now use 'whisper' provider — model should be passed
+    expect(capturedOptions.inputAudioTranscriptionModel).toBe('small');
   });
 
   it('realtimeSession throws when model lacks realtime capability', async () => {
@@ -126,7 +170,7 @@ describe('ApiController', () => {
       ps.upsertRole({ ...vtRole, enabled: true, providerId: 'anthropic', modelId: 'anthropic:claude-sonnet-4-5' });
     }
 
-    await expect(c.realtimeSession()).rejects.toThrow(/realtime/i);
+    await expect(c.realtimeSession({})).rejects.toThrow(/realtime/i);
 
     if (vtRole) ps.upsertRole({ ...vtRole });
   });

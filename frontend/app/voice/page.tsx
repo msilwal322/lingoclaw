@@ -509,6 +509,12 @@ export default function VoicePage() {
         setCurrentRealtimeTranscript('listening...');
       });
 
+      client.on('conversation.item.input_audio_transcription.delta', (event: Extract<RealtimeEvent, { type: 'conversation.item.input_audio_transcription.delta' }>) => {
+        const delta = String(event.delta || '');
+        if (!delta) return;
+        setCurrentRealtimeTranscript(prev => prev === 'listening...' ? delta : prev + delta);
+      });
+
       client.on('input_audio_buffer.speech_stopped', () => {
         console.log('User stopped speaking');
       });

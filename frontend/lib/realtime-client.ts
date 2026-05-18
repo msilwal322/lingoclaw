@@ -4,6 +4,7 @@ export type RealtimeEvent =
   | { type: 'error'; error: string }
   | { type: 'session.created'; session: unknown }
   | { type: 'conversation.item.created'; item: unknown }
+  | { type: 'conversation.item.input_audio_transcription.delta'; itemId: string; delta: string }
   | { type: 'conversation.item.input_audio_transcription.completed'; itemId: string; transcript: string }
   | { type: 'response.audio_transcript.delta'; delta: string; itemId?: string }
   | { type: 'response.audio_transcript.done'; transcript: string; itemId?: string }
@@ -288,6 +289,13 @@ export class RealtimeClient {
         break;
       case 'conversation.item.created':
         this.emit({ type: 'conversation.item.created', item: data.item });
+        break;
+      case 'conversation.item.input_audio_transcription.delta':
+        this.emit({
+          type: 'conversation.item.input_audio_transcription.delta',
+          itemId: getString(data.item_id),
+          delta: getString(data.delta),
+        });
         break;
       case 'conversation.item.input_audio_transcription.completed':
         this.emit({

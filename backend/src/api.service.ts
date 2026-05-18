@@ -444,7 +444,12 @@ export class ApiService {
     const instructions = `You are a conversational ${langName} language practice partner. Engage in brief, natural dialogue with the learner. Keep responses short (1-3 sentences) for spoken conversation. Gently correct major mistakes inline and encourage the learner. Speak naturally as if in a real conversation. The learner is practicing ${langName}.`;
 
     const sttResolved = this.resolveRoleWithProvider('stt');
-    const inputAudioTranscriptionModel = sttResolved ? sttResolved.role.model : undefined;
+    // Only pass the STT model name when the STT role is on the same provider as
+    // the realtime voice role. A model name like 'small' (Whisper.cpp) is not
+    // valid for OpenAI/Azure realtime transcription.
+    const inputAudioTranscriptionModel = (sttResolved && sttResolved.provider.id === provider.id)
+      ? sttResolved.role.model
+      : undefined;
     const turnDetection = { type: 'server_vad' as const, threshold: 0.5, silence_duration_ms: 700, create_response: true, interrupt_response: true };
 
     const realtime = await this.llm.createRealtimeSession(provider, role, {
